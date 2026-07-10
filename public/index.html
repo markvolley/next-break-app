@@ -56,6 +56,9 @@
   .accordion-body .disclaimer{margin:16px 0;}
   .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
   .deal-card{border:1px solid var(--border);border-radius:11px;padding:14px;background:var(--panel2);}
+  .deal-card .region-tag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 9px;border-radius:20px;margin-bottom:8px;}
+  .deal-card .region-tag.domestic{background:rgba(63,182,168,0.18);color:var(--accent);}
+  .deal-card .region-tag.intl{background:rgba(232,163,61,0.18);color:var(--accent2);}
   .deal-card .dest{font-weight:700;font-size:14.5px;margin-bottom:2px;}
   .deal-card .type{color:var(--muted);font-size:12px;margin-bottom:10px;}
   .deal-card .price-row{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;}
@@ -463,6 +466,7 @@ function dealsMarkup(result){
 
   const dealsHtml = result.deals.map(d => `
     <div class="deal-card">
+      <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
       <div class="dest">${d.name}</div>
       <div class="type">${d.airline} ${d.flightNumber} · ${d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s')}</div>
       <div class="price-row">

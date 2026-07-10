@@ -131,16 +131,16 @@
       <h2>1. Your details</h2>
       <div class="row">
         <div>
-          <label>Hometown (for "things to do")</label>
-          <input type="text" id="hometown" placeholder="e.g. Karratha, WA">
+          <label>Hometown (for "things to do") *</label>
+          <input type="text" id="hometown" placeholder="e.g. Karratha, WA" required>
         </div>
         <div>
-          <label>Home airport (for real flight prices)</label>
-          <input type="text" id="originAirport" placeholder="e.g. PER" maxlength="4" style="text-transform:uppercase;">
+          <label>Home airport (for real flight prices) *</label>
+          <input type="text" id="originAirport" placeholder="e.g. PER" maxlength="4" style="text-transform:uppercase;" required>
         </div>
         <div>
-          <label>Currency</label>
-          <select id="currency">
+          <label>Currency *</label>
+          <select id="currency" required>
             <option value="AUD">AUD A$</option>
             <option value="USD">USD $</option>
             <option value="CAD">CAD C$</option>
@@ -149,7 +149,7 @@
           </select>
         </div>
       </div>
-      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane). Required to see any flight deals — without it, breaks will just prompt you to add one.</div>
+      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane).</div>
     </div>
 
     <div class="panel">
@@ -162,16 +162,16 @@
       <div id="patternFields">
         <div class="row">
           <div>
-            <label>Days ON (working)</label>
-            <input type="number" id="daysOn" min="1" value="14">
+            <label>Days ON (working) *</label>
+            <input type="number" id="daysOn" min="1" value="14" required>
           </div>
           <div>
-            <label>Days OFF (break)</label>
-            <input type="number" id="daysOff" min="1" value="7">
+            <label>Days OFF (break) *</label>
+            <input type="number" id="daysOff" min="1" value="7" required>
           </div>
           <div>
-            <label>Start date of your next (or current) break</label>
-            <input type="date" id="nextBreakStart" onclick="openDatePicker(this)">
+            <label>Start date of your next (or current) break *</label>
+            <input type="date" id="nextBreakStart" onclick="openDatePicker(this)" required>
           </div>
         </div>
         <div class="hint">We'll project this cycle forward to show your next several breaks automatically.</div>
@@ -180,7 +180,7 @@
       <div id="manualFields" style="display:none;">
         <div id="manualRows"></div>
         <button class="btn secondary small" onclick="addManualRow()">+ Add a break</button>
-        <div class="hint">Add each upcoming break as your roster is confirmed.</div>
+        <div class="hint">Add at least one break with both start and end dates filled in.</div>
       </div>
 
       <div style="margin-top:20px;">
@@ -294,16 +294,48 @@ function renderManualRows(){
   }
 }
 
+function validateSetup({hometown, originAirport, currency, rosterMode, daysOnRaw, daysOffRaw, nextBreakStart, manualBreaks}){
+  const missing = [];
+  if(!hometown) missing.push('Hometown');
+  if(!originAirport) missing.push('Home airport');
+  if(!currency) missing.push('Currency');
+  if(rosterMode === 'pattern'){
+    if(!daysOnRaw || parseInt(daysOnRaw) < 1) missing.push('Days ON');
+    if(!daysOffRaw || parseInt(daysOffRaw) < 1) missing.push('Days OFF');
+    if(!nextBreakStart) missing.push('Next break start date');
+  }else{
+    if(!manualBreaks.length) missing.push('At least one manual break');
+    else if(manualBreaks.some(r => !r.start || !r.end)) missing.push('Start and end dates for every manual break row');
+  }
+  return missing;
+}
+
 async function saveSetup(){
+  const hometown = document.getElementById('hometown').value.trim();
+  const originAirport = document.getElementById('originAirport').value.trim().toUpperCase();
+  const currency = document.getElementById('currency').value;
+  const daysOnRaw = document.getElementById('daysOn').value;
+  const daysOffRaw = document.getElementById('daysOff').value;
+  const nextBreakStart = document.getElementById('nextBreakStart').value;
+
+  const missing = validateSetup({
+    hometown, originAirport, currency, rosterMode: rosterModeDraft,
+    daysOnRaw, daysOffRaw, nextBreakStart, manualBreaks: manualBreaksDraft
+  });
+  if(missing.length){
+    showBanner('error', 'Please fill in: ' + missing.join(', ') + '.');
+    return;
+  }
+
   const settings = {
-    hometown: document.getElementById('hometown').value.trim() || 'your hometown',
-    originAirport: document.getElementById('originAirport').value.trim().toUpperCase(),
-    currency: document.getElementById('currency').value,
+    hometown,
+    originAirport,
+    currency,
     rosterMode: rosterModeDraft,
     pattern: {
-      daysOn: parseInt(document.getElementById('daysOn').value) || 14,
-      daysOff: parseInt(document.getElementById('daysOff').value) || 7,
-      nextBreakStart: document.getElementById('nextBreakStart').value
+      daysOn: parseInt(daysOnRaw),
+      daysOff: parseInt(daysOffRaw),
+      nextBreakStart
     },
     manualBreaks: manualBreaksDraft.map(r => ({start:r.start, end:r.end}))
   };

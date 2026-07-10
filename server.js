@@ -13,6 +13,7 @@ import { computeUpcomingBreaks, breakStatus, toISO, CURRENCY_SYMBOLS } from './l
 import { getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { findRealDeals } from './lib/travelpayouts.js';
+import { findActivities } from './lib/viator.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -29,6 +30,14 @@ const UNLOCK_FEE_CENTS = parseInt(process.env.UNLOCK_FEE_CENTS, 10) || 500; // $
 // and should stay secret, same handling as the Stripe key.
 const TRAVELPAYOUTS_TOKEN = process.env.TRAVELPAYOUTS_TOKEN || '';
 const TRAVELPAYOUTS_MARKER = process.env.TRAVELPAYOUTS_MARKER || '';
+
+// Viator affiliate credentials — same operator-level pattern as above.
+// VIATOR_API_KEY is secret (authenticates API calls). VIATOR_PID (Partner
+// ID) and VIATOR_MCID (campaign ID) are account identifiers, not secrets,
+// but still operator-level (they're yours, not each user's).
+const VIATOR_API_KEY = process.env.VIATOR_API_KEY || '';
+const VIATOR_PID = process.env.VIATOR_PID || '';
+const VIATOR_MCID = process.env.VIATOR_MCID || '';
 
 // ---------- tiny helpers ----------
 function sendJson(res, status, obj) {
@@ -140,6 +149,26 @@ async function buildDealsForBreak(brk, settings) {
   }
 }
 
+// ---------- activities for hometown (real, via Viator — no fake listings) ----------
+async function buildActivitiesForSettings(settings) {
+  if (!VIATOR_API_KEY || !settings.hometown) {
+    return { source: 'not-configured', activities: [] };
+  }
+  try {
+    const real = await findActivities({
+      apiKey: VIATOR_API_KEY,
+      pid: VIATOR_PID,
+      mcid: VIATOR_MCID,
+      hometown: settings.hometown,
+      currency: settings.currency || 'AUD'
+    });
+    return { source: real.length ? 'real' : 'no-results', activities: real };
+  } catch (e) {
+    console.error('[viator] findActivities threw:', e.message);
+    return { source: 'no-results', activities: [] };
+  }
+}
+
 // ---------- route handlers ----------
 async function handleGetSettings(req, res, userId) {
   sendJson(res, 200, getSettings(userId));
@@ -177,6 +206,12 @@ async function handleGetDeals(req, res, userId, query) {
 
   const { source, deals } = await buildDealsForBreak(brk, settings);
   sendJson(res, 200, { breakKey, source, currencySymbol: CURRENCY_SYMBOLS[settings.currency] || 'A$', deals });
+}
+
+async function handleGetActivities(req, res, userId) {
+  const settings = getSettings(userId);
+  const { source, activities } = await buildActivitiesForSettings(settings);
+  sendJson(res, 200, { source, hometown: settings.hometown || '', activities });
 }
 
 async function handleCheckout(req, res, userId) {
@@ -298,6 +333,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/settings' && req.method === 'PUT') return await handlePutSettings(req, res, userId);
       if (pathname === '/api/breaks' && req.method === 'GET') return await handleGetBreaks(req, res, userId);
       if (pathname === '/api/deals' && req.method === 'GET') return await handleGetDeals(req, res, userId, searchParams);
+      if (pathname === '/api/activities' && req.method === 'GET') return await handleGetActivities(req, res, userId);
       if (pathname === '/api/checkout' && req.method === 'POST') return await handleCheckout(req, res, userId);
       if (pathname === '/api/checkout/confirm' && req.method === 'GET') return await handleConfirmCheckout(req, res, userId, searchParams);
 
@@ -319,8 +355,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   server.listen(PORT, () => {
     console.log(`Next Break server running at http://localhost:${PORT}`);
     console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
+    console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);
   });
 }
 
-export { server, presentBreak, buildDealsForBreak };
+export { server, presentBreak, buildDealsForBreak, buildActivitiesForSettings };

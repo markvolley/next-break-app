@@ -39,6 +39,34 @@ lookup (`X/Y destinations had cached fares`) and logs the actual HTTP
 status/response body on any API error, so an invalid token shows up
 distinctly from a genuine cache miss.
 
+## Things to do — real activities via Viator only
+
+The "things to do in your hometown" section works the same way as flights:
+real bookable tours/activities from Viator (owned by TripAdvisor) via
+`lib/viator.js`, with a trackable "Book this activity" affiliate link.
+Configure `VIATOR_API_KEY`, `VIATOR_PID`, and `VIATOR_MCID` in `.env` (sign
+up free at [partners.viator.com/signup](https://partners.viator.com/signup))
+to turn it on.
+
+There's no fallback here at all — no generic suggestion cards, no
+Google/TripAdvisor search links. Every card shown is a real Viator listing
+with an affiliate link attached, so all traffic from this section has a
+chance to earn commission. If Viator isn't configured, or no activities are
+found for the hometown entered, the section just says so plainly instead of
+sending anyone to a non-affiliate link.
+
+**Known unverified area:** the endpoints, auth, and destination-lookup
+fields in `lib/viator.js` are confirmed against Viator's published API
+docs. The exact field names inside an individual `/search/products` result
+(title, image, price, rating) are a best-effort mapping, since Viator's
+docs didn't expose a full sample response for that endpoint and this dev
+environment has no network access to Viator's API to verify live. The code
+logs the raw key names of the first result it gets back
+(`[viator] sample raw product keys: ...`) — check that log against what
+`normalizeProduct()` in `lib/viator.js` expects the first time you get a
+real API key, and adjust the field names there if anything looks off
+(e.g. missing prices or images on cards that should have them).
+
 ## Why no `npm install`?
 
 The whole backend is built on Node's built-ins only (`http`, `fetch`,
@@ -80,8 +108,11 @@ illustrative mock deals instead of real ones.
 
 | Variable | Required | Default | Notes |
 |---|---|---|---|
-| `TRAVELPAYOUTS_TOKEN` | For real prices | — | From your Travelpayouts account. Without it, all deals fall back to mock/illustrative prices. |
+| `TRAVELPAYOUTS_TOKEN` | For real flight prices | — | From your Travelpayouts account. Without it, breaks just prompt the user to add a home airport — no fake prices. |
 | `TRAVELPAYOUTS_MARKER` | For commission tracking | `749343` | Your affiliate ID — attached to every booking link so completed bookings are credited to you. |
+| `VIATOR_API_KEY` | For real activities | — | From your Viator partner account. Without it, "things to do" shows generic suggestions instead of real listings. |
+| `VIATOR_PID` | For commission tracking | — | Your Viator Partner ID — attached to every activity booking link. |
+| `VIATOR_MCID` | For commission tracking | — | Your Viator campaign ID — also attached to booking links. |
 | `PORT` | No | `3000` | |
 | `DATA_FILE` | No | `./data.json` | Where user settings are stored |
 | `STRIPE_SECRET_KEY` | No | — | Unused (paywall is off — see below). Only needed if you re-enable it. |
@@ -103,10 +134,11 @@ unused. Safe to ignore, or delete if you want to slim things down.
 server.js                 HTTP server + API routes
 lib/deals.js               Break date/scheduling logic (pure functions)
 lib/travelpayouts.js        Real flight price lookups + affiliate booking links
-lib/store.js                 JSON-file persistence (user settings)
-lib/stripeClient.js           Raw Stripe REST calls (dormant, unused — see above)
-lib/links.js                   Search-link helpers (used by the hometown "things to do" links, not flight deals)
-public/index.html               Frontend (vanilla JS, no build step)
+lib/viator.js                 Real activity listings + affiliate booking links
+lib/store.js                   JSON-file persistence (user settings)
+lib/stripeClient.js             Raw Stripe REST calls (dormant, unused — see above)
+lib/links.js                     Search-link helpers (generic-suggestion fallback links)
+public/index.html                 Frontend (vanilla JS, no build step)
 ```
 
 ## API endpoints
@@ -116,8 +148,10 @@ public/index.html               Frontend (vanilla JS, no build step)
   now). Deliberately excludes deals, so loading the dashboard never waits
   on flight-price lookups.
 - `GET /api/deals?breakKey=...` — fetches deals for one specific break,
-  called lazily when the user expands it in the accordion. Tries real
-  prices first (if configured), falls back to mock.
+  called lazily when the user expands it in the accordion. Real fares only
+  (see above) — no mock fallback.
+- `GET /api/activities` — real Viator activities for the user's saved
+  hometown, or a `not-configured`/`no-results` state if unavailable.
 - `PUT /api/settings` — save Setup (hometown, home airport, currency,
   roster pattern or manual breaks).
 

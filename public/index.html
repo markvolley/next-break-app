@@ -124,7 +124,7 @@
           </select>
         </div>
       </div>
-      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane). Leave blank to see illustrative example prices instead of real fares.</div>
+      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane). Required to see any flight deals — without it, breaks will just prompt you to add one.</div>
     </div>
 
     <div class="panel">
@@ -186,7 +186,7 @@
 
 </main>
 
-<footer>Roster and unlock records are stored on this server, keyed to a random device ID in your browser — there's no login, so it won't sync across devices. Deal suggestions are illustrative — always confirm real prices before booking.</footer>
+<footer>Roster settings are stored on this server, keyed to a random device ID in your browser — there's no login, so it won't sync across devices. Deal prices are cached fares, not a live quote — always confirm the final price before booking.</footer>
 
 <script>
 // ---------- user identity (no login — device-scoped id) ----------
@@ -430,44 +430,30 @@ function renderBreaksList(){
 
 function dealsMarkup(result){
   const sym = result.currencySymbol;
-  const isReal = result.source === 'real';
 
-  const dealsHtml = result.deals.map(d => {
-    if(d.source === 'real'){
-      return `
-        <div class="deal-card">
-          <div class="dest">${d.name}</div>
-          <div class="type">${d.airline} ${d.flightNumber} · ${d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s')}</div>
-          <div class="price-row">
-            <span class="price">${sym}${Math.round(d.price)}</span>
-          </div>
-          <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
-          <div class="blurb">${d.blurb}</div>
-          <a href="${d.bookUrl}" target="_blank" rel="noopener sponsored">✈️ Book this fare →</a>
-        </div>
-      `;
-    }
-    return `
-      <div class="deal-card">
-        <div class="dest">${d.name}</div>
-        <div class="type">${d.type} · ${d.nights} night${d.nights===1?'':'s'}</div>
-        <div class="price-row">
-          <span class="price">${sym}${d.discounted}</span>
-          <span class="orig">${sym}${d.original}</span>
-        </div>
-        <div class="discount">${d.discount}% off · ${d.flight}</div>
-        <div class="blurb">${d.blurb}</div>
-        <a href="${d.searchUrl}" target="_blank" rel="noopener">🔍 Search live fares →</a>
+  if(result.source === 'not-configured'){
+    return `<div class="disclaimer">✈️ Add your home airport in <a href="#" onclick="showView('setup');return false;">Setup</a> to see real flight prices for this break.</div>`;
+  }
+
+  if(result.source === 'no-results' || !result.deals.length){
+    return `<div class="disclaimer">No cached fares found yet for this route and these dates. Travelpayouts' prices come from recent real searches, so this can change — worth checking back closer to your break.</div>`;
+  }
+
+  const dealsHtml = result.deals.map(d => `
+    <div class="deal-card">
+      <div class="dest">${d.name}</div>
+      <div class="type">${d.airline} ${d.flightNumber} · ${d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s')}</div>
+      <div class="price-row">
+        <span class="price">${sym}${Math.round(d.price)}</span>
       </div>
-    `;
-  }).join('');
-
-  const disclaimer = isReal
-    ? `💰 Real cached fares from Aviasales, found within the last week — dates shown are the actual flight found near your break, not guaranteed to match it exactly. "Book this fare" is a real, trackable booking link.`
-    : `💡 Illustrative example prices, not live fares` + (realPricesAvailable ? ' (no recent real fare found for this break — showing examples instead).' : '. Add a home airport in Setup to see real prices where available.');
+      <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
+      <div class="blurb">${d.blurb}</div>
+      <a href="${d.bookUrl}" target="_blank" rel="noopener sponsored">✈️ Book this fare →</a>
+    </div>
+  `).join('');
 
   return `
-    <div class="disclaimer">${disclaimer}</div>
+    <div class="disclaimer">💰 Real cached fares from Aviasales, found within the last week — dates shown are the actual flight found near your break, not guaranteed to match it exactly. "Book this fare" is a real, trackable booking link.</div>
     <div class="deals-grid">${dealsHtml}</div>
   `;
 }

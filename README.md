@@ -10,21 +10,34 @@ someone books. A "things to do in your hometown" section is also included.
 commission on completed bookings. No paywall, no fee, no friction between
 someone seeing a deal and being able to book it.
 
-## Real prices vs. mock prices
+## Real prices only — no fake/mock deals
 
 Deals come from the Travelpayouts Data API, which is a **cache of recent
 real searches**, not a live GDS lookup — perfect for someone planning weeks
 ahead for a scheduled break, but it does mean a given destination won't
 always have cached data for the exact dates asked. That's normal, not a bug.
 
-- If `TRAVELPAYOUTS_TOKEN` is set **and** the user has entered a home
-  airport in Setup, the app queries real cached fares for a curated list of
-  destinations and shows whichever come back with data (real airline,
-  flight number, price, and a working "Book this fare" link).
-- If the token isn't set, or a user hasn't entered a home airport yet, or a
-  particular break's search comes back empty, the app falls back to
-  illustrative mock prices with a "search live fares" link instead — the UI
-  is always populated, never broken or blank.
+There's deliberately no mock/illustrative price fallback. A made-up price
+with a plain Google search link doesn't earn commission when clicked and
+risks misleading the user, so instead each break shows one of three honest
+states:
+
+- **Real fares** — `TRAVELPAYOUTS_TOKEN` is set, a home airport is entered,
+  and at least one of the ~22 curated destinations had a cached fare for
+  those dates. Shows real airline, flight number, price, and a working
+  "Book this fare" affiliate link.
+- **"No cached fares yet"** — token and home airport are both set, but none
+  of the destinations queried had cached data for that route/date range.
+  No fake price, no dead-end search link — just an honest message.
+- **"Add your home airport"** — no home airport entered yet (or
+  `TRAVELPAYOUTS_TOKEN` isn't set on the server), so no search was even
+  attempted.
+
+If real fares seem to be missing more than expected, check the server logs
+(e.g. Render's Logs tab) — `lib/travelpayouts.js` logs a hit-rate line per
+lookup (`X/Y destinations had cached fares`) and logs the actual HTTP
+status/response body on any API error, so an invalid token shows up
+distinctly from a genuine cache miss.
 
 ## Why no `npm install`?
 
@@ -88,11 +101,11 @@ unused. Safe to ignore, or delete if you want to slim things down.
 
 ```
 server.js                 HTTP server + API routes
-lib/deals.js               Break scheduling + mock deal generation (pure functions)
+lib/deals.js               Break date/scheduling logic (pure functions)
 lib/travelpayouts.js        Real flight price lookups + affiliate booking links
 lib/store.js                 JSON-file persistence (user settings)
 lib/stripeClient.js           Raw Stripe REST calls (dormant, unused — see above)
-lib/links.js                   Search-link helpers (mock-deal fallback links)
+lib/links.js                   Search-link helpers (used by the hometown "things to do" links, not flight deals)
 public/index.html               Frontend (vanilla JS, no build step)
 ```
 

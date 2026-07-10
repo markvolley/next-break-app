@@ -9,10 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { computeUpcomingBreaks, generateDeals, breakStatus, toISO, CURRENCY_SYMBOLS } from './lib/deals.js';
+import { computeUpcomingBreaks, breakStatus, toISO, CURRENCY_SYMBOLS } from './lib/deals.js';
 import { getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
-import { googleSearchUrl } from './lib/links.js';
 import { findRealDeals } from './lib/travelpayouts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -113,35 +112,32 @@ function presentBreak(brk, settings) {
   };
 }
 
-// ---------- deals for a single break (real, with mock fallback) ----------
+// ---------- deals for a single break (real fares only — no fake/mock prices) ----------
+// Three possible outcomes, distinguished by `source` so the frontend can be
+// honest about which one happened rather than always showing a populated
+// card. We deliberately do NOT fall back to invented prices with a Google
+// search link — a made-up price that doesn't earn commission when clicked
+// isn't more useful to the user than an honest "nothing cached yet."
 async function buildDealsForBreak(brk, settings) {
   const currency = (settings.currency || 'AUD').toLowerCase();
 
-  if (TRAVELPAYOUTS_TOKEN && settings.originAirport) {
-    try {
-      const real = await findRealDeals({
-        token: TRAVELPAYOUTS_TOKEN,
-        marker: TRAVELPAYOUTS_MARKER,
-        origin: settings.originAirport.toUpperCase(),
-        currency,
-        brk
-      });
-      if (real.length) {
-        return { source: 'real', deals: real };
-      }
-      // No cached fares found for any candidate destination this time —
-      // fall through to mock rather than showing an empty panel.
-    } catch (e) {
-      // Fall through to mock on any API error too.
-    }
+  if (!TRAVELPAYOUTS_TOKEN || !settings.originAirport) {
+    return { source: 'not-configured', deals: [] };
   }
 
-  const mock = generateDeals(brk).map(d => {
-    const destShort = d.name.split(',')[0];
-    const searchUrl = googleSearchUrl(`flights to ${destShort} ${toISO(brk.start)} to ${toISO(brk.end)}`);
-    return { ...d, source: 'mock', searchUrl };
-  });
-  return { source: 'mock', deals: mock };
+  try {
+    const real = await findRealDeals({
+      token: TRAVELPAYOUTS_TOKEN,
+      marker: TRAVELPAYOUTS_MARKER,
+      origin: settings.originAirport.toUpperCase(),
+      currency,
+      brk
+    });
+    return { source: real.length ? 'real' : 'no-results', deals: real };
+  } catch (e) {
+    console.error('[travelpayouts] findRealDeals threw:', e.message);
+    return { source: 'no-results', deals: [] };
+  }
 }
 
 // ---------- route handlers ----------
@@ -322,7 +318,7 @@ const server = http.createServer(async (req, res) => {
 if (import.meta.url === `file://${process.argv[1]}`) {
   server.listen(PORT, () => {
     console.log(`Next Break server running at http://localhost:${PORT}`);
-    console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — falling back to illustrative mock deals)'}`);
+    console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);
   });
 }

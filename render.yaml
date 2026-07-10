@@ -1,0 +1,29 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploy: push this repo to GitHub, then in Render click
+# New > Blueprint and point it at the repo. Render reads this file and
+# creates the service + persistent disk automatically.
+#
+# After the first deploy, set TRAVELPAYOUTS_TOKEN in the Render dashboard
+# (Environment tab) — don't commit real secrets into this file or the repo.
+
+services:
+  - type: web
+    name: next-break
+    runtime: node
+    plan: starter
+    buildCommand: "true" # no npm install needed — zero dependencies
+    startCommand: "node server.js"
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATA_FILE
+        value: /data/data.json
+      - key: TRAVELPAYOUTS_MARKER
+        value: "749343"
+      - key: TRAVELPAYOUTS_TOKEN
+        sync: false # set this manually in the dashboard, not in git
+    disk:
+      name: next-break-data
+      mountPath: /data
+      sizeGB: 1

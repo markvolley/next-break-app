@@ -1,0 +1,15 @@
+{
+  "name": "next-break-app",
+  "version": "1.0.0",
+  "description": "FIFO break travel planner with real flight prices via Travelpayouts affiliate links.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "start:noenv": "node server.js"
+  },
+  "dependencies": {},
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Next Break</title>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#16212c; --panel2:#1c2a37; --border:#2a3a48;
+    --text:#e8eef3; --muted:#8fa3b3; --accent:#3fb6a8; --accent2:#e8a33d;
+    --danger:#e2604f; --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  header h1{font-size:18px;margin:0;display:flex;align-items:center;gap:8px;}
+  header h1 .tag{background:var(--accent);color:#06231f;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:.03em;}
+  .nav-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:10px;cursor:pointer;font-size:14px;}
+  .nav-btn.active{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  main{max-width:920px;margin:0 auto;padding:20px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px;}
+  .panel h2{margin-top:0;font-size:16px;}
+  label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px;}
+  input[type=text],input[type=date],input[type=number],select{
+    width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--text);font-size:14px;
+  }
+  .row{display:flex;gap:14px;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:150px;}
+  .mode-toggle{display:flex;gap:8px;margin:6px 0 4px;}
+  .mode-toggle button{flex:1;padding:10px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:14px;}
+  .mode-toggle button.active{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .btn{background:var(--accent);color:#06231f;border:none;padding:11px 20px;border-radius:9px;font-weight:700;cursor:pointer;font-size:14px;}
+  .btn.secondary{background:none;border:1px solid var(--border);color:var(--text);font-weight:500;}
+  .btn.small{padding:6px 12px;font-size:12.5px;}
+  .btn.danger{background:none;border:1px solid var(--danger);color:var(--danger);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .manual-row{display:flex;gap:10px;align-items:end;border:1px solid var(--border);padding:12px;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .manual-row > div{flex:1;min-width:130px;}
+  .hint{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.5;}
+  .empty{color:var(--muted);font-size:14px;padding:20px 0;text-align:center;}
+  .accordion-item{border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;background:var(--panel2);}
+  .accordion-item.open{border-color:var(--accent);}
+  .break-row{padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer;transition:background .15s;}
+  .break-row:hover{background:rgba(63,182,168,0.08);}
+  .accordion-item.open .break-row{background:rgba(63,182,168,0.14);}
+  .break-row .dates{font-weight:700;font-size:15px;}
+  .break-row .meta{color:var(--muted);font-size:13px;margin-top:2px;}
+  .break-row .right{display:flex;align-items:center;gap:10px;}
+  .break-row .chevron{color:var(--muted);font-size:16px;display:inline-block;transition:transform .15s;}
+  .accordion-item.open .break-row .chevron{color:var(--accent);transform:rotate(90deg);}
+  .badge{background:var(--accent);color:#06231f;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;}
+  .badge.soon{background:var(--accent2);}
+  .accordion-body{padding:0 18px 18px;border-top:1px solid var(--border);}
+  .accordion-body .disclaimer{margin:16px 0;}
+  .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
+  .deal-card{border:1px solid var(--border);border-radius:11px;padding:14px;background:var(--panel2);}
+  .deal-card .dest{font-weight:700;font-size:14.5px;margin-bottom:2px;}
+  .deal-card .type{color:var(--muted);font-size:12px;margin-bottom:10px;}
+  .deal-card .price-row{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;}
+  .deal-card .price{font-size:18px;font-weight:800;color:var(--accent);}
+  .deal-card .orig{text-decoration:line-through;color:var(--muted);font-size:12.5px;}
+  .deal-card .discount{color:var(--accent2);font-size:12px;font-weight:700;}
+  .deal-card .blurb{font-size:12.5px;color:var(--muted);margin:8px 0 10px;line-height:1.4;}
+  .deal-card a{color:var(--accent);font-size:12.5px;text-decoration:none;font-weight:600;display:block;margin-top:6px;}
+  .deal-card a:hover{text-decoration:underline;}
+  .deal-card a:first-of-type{margin-top:0;}
+  .links-row{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;}
+  .links-row a{font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600;}
+  .links-row a:hover{text-decoration:underline;}
+  .activities-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+  .activity-card{border:1px solid var(--border);border-radius:11px;padding:14px;background:var(--panel2);}
+  .activity-card .cat{color:var(--accent2);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+  .activity-card .title{font-weight:700;font-size:14px;margin-bottom:4px;}
+  .activity-card .desc{font-size:12.5px;color:var(--muted);line-height:1.4;}
+  .top-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+  .top-bar .summary{font-size:13.5px;color:var(--muted);}
+  .top-bar .summary b{color:var(--text);}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:30px 20px;}
+  .disclaimer{background:var(--panel2);border:1px dashed var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+  .banner{padding:12px 16px;border-radius:10px;margin-bottom:18px;font-size:13.5px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .banner.success{background:rgba(63,182,168,0.15);border:1px solid var(--accent);}
+  .banner.error{background:rgba(226,96,79,0.15);border:1px solid var(--danger);}
+  .banner.info{background:var(--panel2);border:1px solid var(--border);}
+  .banner button{background:none;border:none;color:inherit;cursor:pointer;font-size:16px;}
+  code{background:var(--panel2);padding:1px 5px;border-radius:5px;font-size:12px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧭 Next Break <span class="tag">live</span></h1>
+  <div>
+    <button class="nav-btn" id="navSetup" onclick="showView('setup')">Setup</button>
+    <button class="nav-btn" id="navDash" onclick="showView('dashboard')">My Breaks</button>
+  </div>
+</header>
+
+<main>
+
+  <div id="banners"></div>
+
+  <!-- SETUP VIEW -->
+  <div id="view-setup">
+    <div class="panel">
+      <h2>1. Your details</h2>
+      <div class="row">
+        <div>
+          <label>Hometown (for "things to do")</label>
+          <input type="text" id="hometown" placeholder="e.g. Karratha, WA">
+        </div>
+        <div>
+          <label>Home airport (for real flight prices)</label>
+          <input type="text" id="originAirport" placeholder="e.g. PER" maxlength="4" style="text-transform:uppercase;">
+        </div>
+        <div>
+          <label>Currency</label>
+          <select id="currency">
+            <option value="AUD">AUD A$</option>
+            <option value="USD">USD $</option>
+            <option value="CAD">CAD C$</option>
+            <option value="GBP">GBP £</option>
+            <option value="EUR">EUR €</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane). Leave blank to see illustrative example prices instead of real fares.</div>
+    </div>
+
+    <div class="panel">
+      <h2>2. Your roster</h2>
+      <div class="mode-toggle">
+        <button id="modeBtnPattern" onclick="setRosterMode('pattern')">Repeating swing (e.g. 14 on / 7 off)</button>
+        <button id="modeBtnManual" onclick="setRosterMode('manual')">Manual break dates</button>
+      </div>
+
+      <div id="patternFields">
+        <div class="row">
+          <div>
+            <label>Days ON (working)</label>
+            <input type="number" id="daysOn" min="1" value="14">
+          </div>
+          <div>
+            <label>Days OFF (break)</label>
+            <input type="number" id="daysOff" min="1" value="7">
+          </div>
+          <div>
+            <label>Start date of your next (or current) break</label>
+            <input type="date" id="nextBreakStart" onclick="openDatePicker(this)">
+          </div>
+        </div>
+        <div class="hint">We'll project this cycle forward to show your next several breaks automatically.</div>
+      </div>
+
+      <div id="manualFields" style="display:none;">
+        <div id="manualRows"></div>
+        <button class="btn secondary small" onclick="addManualRow()">+ Add a break</button>
+        <div class="hint">Add each upcoming break as your roster is confirmed.</div>
+      </div>
+
+      <div style="margin-top:20px;">
+        <button class="btn" onclick="saveSetup()">Save & view my breaks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="view-dashboard" style="display:none;">
+    <div class="top-bar">
+      <div class="summary">Planning breaks for <b id="sumHometown">—</b> · <b id="sumRoster">—</b></div>
+      <button class="btn secondary small" onclick="showView('setup')">Edit setup</button>
+    </div>
+
+    <div class="panel">
+      <h2>Upcoming breaks</h2>
+      <div class="hint" style="margin:0 0 14px;">Click a break to see (or unlock) travel deals for those dates.</div>
+      <div id="breaksList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Things to do in <span id="hometownLabel">your hometown</span></h2>
+      <div id="activitiesGrid" class="activities-grid"></div>
+      <div class="links-row" id="hometownLinks"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>Roster and unlock records are stored on this server, keyed to a random device ID in your browser — there's no login, so it won't sync across devices. Deal suggestions are illustrative — always confirm real prices before booking.</footer>
+
+<script>
+// ---------- user identity (no login — device-scoped id) ----------
+const USER_ID_KEY = 'nextbreak_user_id';
+function getUserId(){
+  let id = localStorage.getItem(USER_ID_KEY);
+  if(!id){
+    id = (crypto.randomUUID ? crypto.randomUUID() : 'u-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+    localStorage.setItem(USER_ID_KEY, id);
+  }
+  return id;
+}
+const USER_ID = getUserId();
+
+async function api(path, opts = {}){
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': USER_ID, ...(opts.headers||{}) }
+  });
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+  return data;
+}
+
+// ---------- banners ----------
+function showBanner(type, message, {dismissible=true} = {}){
+  const el = document.createElement('div');
+  el.className = 'banner ' + type;
+  el.innerHTML = `<span>${message}</span>` + (dismissible ? `<button onclick="this.parentElement.remove()">✕</button>` : '');
+  document.getElementById('banners').appendChild(el);
+  return el;
+}
+
+// ---------- date picker helper ----------
+function openDatePicker(input){
+  try{ if(typeof input.showPicker === 'function') input.showPicker(); }
+  catch(e){ /* Safari etc. — click still focuses the field */ }
+}
+
+// ---------- local (unsaved) setup form state ----------
+let manualBreaksDraft = [];
+let rosterModeDraft = 'pattern';
+
+function setRosterMode(mode){
+  rosterModeDraft = mode;
+  document.getElementById('modeBtnPattern').classList.toggle('active', mode==='pattern');
+  document.getElementById('modeBtnManual').classList.toggle('active', mode==='manual');
+  document.getElementById('patternFields').style.display = mode==='pattern' ? '' : 'none';
+  document.getElementById('manualFields').style.display = mode==='manual' ? '' : 'none';
+}
+
+function addManualRow(start, end){
+  const id = 'm' + Date.now() + Math.random().toString(36).slice(2,7);
+  manualBreaksDraft.push({id, start: start||'', end: end||''});
+  renderManualRows();
+}
+function removeManualRow(id){
+  manualBreaksDraft = manualBreaksDraft.filter(r => r.id !== id);
+  renderManualRows();
+}
+function updateManualRow(id, field, value){
+  const row = manualBreaksDraft.find(r => r.id === id);
+  if(row) row[field] = value;
+}
+function renderManualRows(){
+  const container = document.getElementById('manualRows');
+  container.innerHTML = '';
+  manualBreaksDraft.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'manual-row';
+    div.innerHTML = `
+      <div><label>Break start</label><input type="date" value="${r.start}" onclick="openDatePicker(this)" onchange="updateManualRow('${r.id}','start',this.value)"></div>
+      <div><label>Break end</label><input type="date" value="${r.end}" onclick="openDatePicker(this)" onchange="updateManualRow('${r.id}','end',this.value)"></div>
+      <div style="flex:0 0 auto;"><button class="btn danger small" onclick="removeManualRow('${r.id}')">Remove</button></div>
+    `;
+    container.appendChild(div);
+  });
+  if(manualBreaksDraft.length === 0){
+    container.innerHTML = '<div class="hint">No breaks added yet.</div>';
+  }
+}
+
+async function saveSetup(){
+  const settings = {
+    hometown: document.getElementById('hometown').value.trim() || 'your hometown',
+    originAirport: document.getElementById('originAirport').value.trim().toUpperCase(),
+    currency: document.getElementById('currency').value,
+    rosterMode: rosterModeDraft,
+    pattern: {
+      daysOn: parseInt(document.getElementById('daysOn').value) || 14,
+      daysOff: parseInt(document.getElementById('daysOff').value) || 7,
+      nextBreakStart: document.getElementById('nextBreakStart').value
+    },
+    manualBreaks: manualBreaksDraft.map(r => ({start:r.start, end:r.end}))
+  };
+  try{
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
+    await showView('dashboard');
+  }catch(e){
+    showBanner('error', 'Could not save: ' + e.message);
+  }
+}
+
+async function fillSetupForm(){
+  let settings;
+  try{
+    settings = await api('/api/settings');
+  }catch(e){
+    showBanner('error', 'Could not load settings: ' + e.message);
+    settings = { hometown:'', originAirport:'', currency:'AUD', rosterMode:'pattern', pattern:{daysOn:14,daysOff:7,nextBreakStart:''}, manualBreaks:[] };
+  }
+  document.getElementById('hometown').value = settings.hometown || '';
+  document.getElementById('originAirport').value = settings.originAirport || '';
+  document.getElementById('currency').value = settings.currency || 'AUD';
+  document.getElementById('daysOn').value = settings.pattern.daysOn;
+  document.getElementById('daysOff').value = settings.pattern.daysOff;
+  document.getElementById('nextBreakStart').value = settings.pattern.nextBreakStart || '';
+  manualBreaksDraft = (settings.manualBreaks || []).map((r,i) => ({id:'m'+i, start:r.start, end:r.end}));
+  setRosterMode(settings.rosterMode || 'pattern');
+  renderManualRows();
+}
+
+// ---------- view switching ----------
+async function showView(view){
+  document.getElementById('view-setup').style.display = view==='setup' ? '' : 'none';
+  document.getElementById('view-dashboard').style.display = view==='dashboard' ? '' : 'none';
+  document.getElementById('navSetup').classList.toggle('active', view==='setup');
+  document.getElementById('navDash').classList.toggle('active', view==='dashboard');
+  if(view==='setup') await fillSetupForm();
+  if(view==='dashboard') await renderDashboard();
+}
+
+// ---------- dashboard ----------
+let currentBreaks = [];
+let openBreakKey = null;
+let userHasCollapsed = false;
+let realPricesAvailable = false;
+const dealsCache = {};   // breakKey -> {source, currencySymbol, deals}
+const dealsLoading = {}; // breakKey -> true while a fetch is in flight
+
+function fmtDateStr(iso){
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+}
+function fmtDateTime(isoWithOffset){
+  const d = new Date(isoWithOffset);
+  return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+}
+
+async function renderDashboard(){
+  let data;
+  try{
+    data = await api('/api/breaks');
+  }catch(e){
+    document.getElementById('breaksList').innerHTML = '<div class="empty">Could not load breaks: ' + e.message + '</div>';
+    return;
+  }
+  currentBreaks = data.breaks;
+  realPricesAvailable = !!data.realPricesAvailable;
+
+  document.getElementById('sumHometown').textContent = data.hometown || '—';
+  document.getElementById('sumRoster').textContent = currentBreaks.length + ' upcoming break(s)';
+
+  if(currentBreaks.length === 0){
+    document.getElementById('breaksList').innerHTML = '<div class="empty">No upcoming breaks yet — head to Setup to add your roster.</div>';
+    renderActivities(data.hometown);
+    return;
+  }
+
+  if(openBreakKey !== null && !currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = null;
+  if(openBreakKey === null && !userHasCollapsed) openBreakKey = currentBreaks[0].key;
+
+  renderBreaksList();
+  if(openBreakKey && !dealsCache[openBreakKey]) loadDeals(openBreakKey);
+  renderActivities(data.hometown);
+}
+
+function toggleBreak(key){
+  openBreakKey = (openBreakKey === key) ? null : key;
+  userHasCollapsed = true;
+  renderBreaksList();
+  if(openBreakKey && !dealsCache[openBreakKey]) loadDeals(openBreakKey);
+}
+
+async function loadDeals(key){
+  if(dealsLoading[key]) return;
+  dealsLoading[key] = true;
+  try{
+    const result = await api('/api/deals?breakKey=' + encodeURIComponent(key));
+    dealsCache[key] = result;
+  }catch(e){
+    dealsCache[key] = { error: e.message };
+  }
+  dealsLoading[key] = false;
+  if(openBreakKey === key) renderBreaksList();
+}
+
+function renderBreaksList(){
+  const list = document.getElementById('breaksList');
+  list.innerHTML = '';
+
+  currentBreaks.forEach(brk => {
+    const isOpen = brk.key === openBreakKey;
+    let badge = '';
+    if(brk.isOngoing) badge = '<span class="badge soon">On break now</span>';
+    else if(brk.isSoon) badge = `<span class="badge soon">In ${brk.daysUntil} day${brk.daysUntil===1?'':'s'}</span>`;
+    else badge = `<span class="badge">In ${brk.daysUntil} days</span>`;
+
+    const item = document.createElement('div');
+    item.className = 'accordion-item' + (isOpen ? ' open' : '');
+
+    const header = document.createElement('div');
+    header.className = 'break-row';
+    header.onclick = () => toggleBreak(brk.key);
+    header.innerHTML = `
+      <div>
+        <div class="dates">${fmtDateStr(brk.start)} → ${fmtDateStr(brk.end)}</div>
+        <div class="meta">${brk.duration} day break</div>
+      </div>
+      <div class="right">${badge}<span class="chevron">›</span></div>
+    `;
+    item.appendChild(header);
+
+    if(isOpen){
+      const body = document.createElement('div');
+      body.className = 'accordion-body';
+      const cached = dealsCache[brk.key];
+      if(!cached){
+        body.innerHTML = '<div class="empty">Looking up deals…</div>';
+      }else if(cached.error){
+        body.innerHTML = '<div class="empty">Could not load deals: ' + cached.error + '</div>';
+      }else{
+        body.innerHTML = dealsMarkup(cached);
+      }
+      item.appendChild(body);
+    }
+
+    list.appendChild(item);
+  });
+}
+
+function dealsMarkup(result){
+  const sym = result.currencySymbol;
+  const isReal = result.source === 'real';
+
+  const dealsHtml = result.deals.map(d => {
+    if(d.source === 'real'){
+      return `
+        <div class="deal-card">
+          <div class="dest">${d.name}</div>
+          <div class="type">${d.airline} ${d.flightNumber} · ${d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s')}</div>
+          <div class="price-row">
+            <span class="price">${sym}${Math.round(d.price)}</span>
+          </div>
+          <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
+          <div class="blurb">${d.blurb}</div>
+          <a href="${d.bookUrl}" target="_blank" rel="noopener sponsored">✈️ Book this fare →</a>
+        </div>
+      `;
+    }
+    return `
+      <div class="deal-card">
+        <div class="dest">${d.name}</div>
+        <div class="type">${d.type} · ${d.nights} night${d.nights===1?'':'s'}</div>
+        <div class="price-row">
+          <span class="price">${sym}${d.discounted}</span>
+          <span class="orig">${sym}${d.original}</span>
+        </div>
+        <div class="discount">${d.discount}% off · ${d.flight}</div>
+        <div class="blurb">${d.blurb}</div>
+        <a href="${d.searchUrl}" target="_blank" rel="noopener">🔍 Search live fares →</a>
+      </div>
+    `;
+  }).join('');
+
+  const disclaimer = isReal
+    ? `💰 Real cached fares from Aviasales, found within the last week — dates shown are the actual flight found near your break, not guaranteed to match it exactly. "Book this fare" is a real, trackable booking link.`
+    : `💡 Illustrative example prices, not live fares` + (realPricesAvailable ? ' (no recent real fare found for this break — showing examples instead).' : '. Add a home airport in Setup to see real prices where available.');
+
+  return `
+    <div class="disclaimer">${disclaimer}</div>
+    <div class="deals-grid">${dealsHtml}</div>
+  `;
+}
+
+// ---------- things to do (free, not paywalled) ----------
+const ACTIVITY_TEMPLATES = [
+  {cat:'Outdoors', title:d=>`Explore trails near ${d}`, desc:d=>`Check local trail apps for hikes and lookouts around ${d} — great for shaking off travel fatigue.`},
+  {cat:'Food & Drink', title:d=>`Try a new spot in ${d}`, desc:d=>`Look up recently-opened cafes or restaurants in ${d} you haven't tried yet.`},
+  {cat:'Relax & Recover', title:d=>`Book a massage or spa session`, desc:d=>`Worth prioritising recovery early in the break before plans fill up.`},
+  {cat:'Local Events', title:d=>`Check what's on in ${d}`, desc:d=>`Markets, live music or community events often pop up on weekends — worth a quick search.`},
+  {cat:'Family', title:d=>`Plan a family day in ${d}`, desc:d=>`Parks, pools or a day trip nearby — good low-effort way to reconnect.`},
+  {cat:'Fitness', title:d=>`Get back into a routine`, desc:d=>`Local gym day pass, a run, or a swim — easier to restart early in the break.`},
+];
+
+function renderActivities(hometown){
+  const town = hometown || 'your hometown';
+  document.getElementById('hometownLabel').textContent = town;
+  const grid = document.getElementById('activitiesGrid');
+  grid.innerHTML = ACTIVITY_TEMPLATES.map(t =>
+    `<div class="activity-card"><div class="cat">${t.cat}</div><div class="title">${t.title(town)}</div><div class="desc">${t.desc(town)}</div></div>`
+  ).join('');
+
+  const q = encodeURIComponent(`things to do in ${town}`);
+  document.getElementById('hometownLinks').innerHTML = `
+    <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">🔍 Search live on Google</a>
+    <a href="https://www.tripadvisor.com/Search?q=${q}" target="_blank" rel="noopener">🧳 Search on TripAdvisor</a>
+  `;
+}
+
+// ---------- init ----------
+(async function init(){
+  // If they were mid-setup previously we still just default to dashboard;
+  // it gracefully shows an empty state prompting Setup if nothing's saved.
+  await showView('dashboard');
+})();
+</script>
+
+</body>
+</html>

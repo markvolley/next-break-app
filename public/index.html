@@ -10,12 +10,13 @@
     --text:#e8eef3; --muted:#8fa3b3; --accent:#3fb6a8; --accent2:#e8a33d;
     --danger:#e2604f; --radius:14px;
   }
-  *{box-sizing:border-box;}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;}
   header{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
   header h1{font-size:18px;margin:0;display:flex;align-items:center;gap:8px;}
   header h1 .tag{background:var(--accent);color:#06231f;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:.03em;}
-  .nav-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:10px;cursor:pointer;font-size:14px;}
+  .nav-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:10px;cursor:pointer;font-size:14px;min-height:40px;}
   .nav-btn.active{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
   main{max-width:920px;margin:0 auto;padding:20px;}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px;}
@@ -23,16 +24,16 @@
   label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px;}
   input[type=text],input[type=date],input[type=number],select{
     width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);
-    background:var(--panel2);color:var(--text);font-size:14px;
+    background:var(--panel2);color:var(--text);font-size:16px;
   }
   .row{display:flex;gap:14px;flex-wrap:wrap;}
   .row > div{flex:1;min-width:150px;}
-  .mode-toggle{display:flex;gap:8px;margin:6px 0 4px;}
-  .mode-toggle button{flex:1;padding:10px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:14px;}
+  .mode-toggle{display:flex;gap:8px;margin:6px 0 4px;flex-wrap:wrap;}
+  .mode-toggle button{flex:1;min-width:140px;padding:10px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:14px;min-height:44px;}
   .mode-toggle button.active{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  .btn{background:var(--accent);color:#06231f;border:none;padding:11px 20px;border-radius:9px;font-weight:700;cursor:pointer;font-size:14px;}
+  .btn{background:var(--accent);color:#06231f;border:none;padding:11px 20px;border-radius:9px;font-weight:700;cursor:pointer;font-size:14px;min-height:44px;}
   .btn.secondary{background:none;border:1px solid var(--border);color:var(--text);font-weight:500;}
-  .btn.small{padding:6px 12px;font-size:12.5px;}
+  .btn.small{padding:6px 12px;font-size:12.5px;min-height:36px;}
   .btn.danger{background:none;border:1px solid var(--danger);color:var(--danger);}
   .btn:disabled{opacity:.5;cursor:not-allowed;}
   .manual-row{display:flex;gap:10px;align-items:end;border:1px solid var(--border);padding:12px;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;}
@@ -84,6 +85,27 @@
   .banner.info{background:var(--panel2);border:1px solid var(--border);}
   .banner button{background:none;border:none;color:inherit;cursor:pointer;font-size:16px;}
   code{background:var(--panel2);padding:1px 5px;border-radius:5px;font-size:12px;}
+
+  /* ---------- mobile ---------- */
+  @media (max-width: 640px){
+    header{padding:12px 14px;}
+    header h1{font-size:16px;}
+    main{padding:14px;}
+    .panel{padding:16px;}
+    .row{flex-direction:column;gap:0;}
+    .row > div{min-width:0;width:100%;}
+    .manual-row{flex-direction:column;align-items:stretch;}
+    .manual-row > div{min-width:0;width:100%;}
+    .manual-row .btn{width:100%;}
+    .mode-toggle{flex-direction:column;}
+    .mode-toggle button{min-width:0;}
+    .top-bar{flex-direction:column;align-items:stretch;}
+    .top-bar .btn{width:100%;}
+    .break-row{padding:14px;}
+    .deals-grid{grid-template-columns:1fr;}
+    .activities-grid{grid-template-columns:1fr;}
+    .deal-card a, .links-row a{padding:4px 0;}
+  }
 </style>
 </head>
 <body>

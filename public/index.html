@@ -288,7 +288,7 @@
       </div>
       <div class="hero-overlay">
         <h1 class="hero-title">Your next break starts here<span style="color:var(--accent2);">.</span></h1>
-        <p class="hero-sub">Turn your roster into real trips — cached flight fares and bookable things to do, matched to your actual days off.</p>
+        <p class="hero-sub">Turn your roster into real trips — real flight prices and bookable things to do, matched to your actual days off.</p>
         <div class="hero-ctas">
           <button class="btn" onclick="markLandingSeen();showView('setup')">Search deals</button>
           <button class="btn secondary" onclick="markLandingSeen();openAuthModal('signup')">Create free account</button>
@@ -297,7 +297,7 @@
     </div>
     <div class="landing-features">
       <div class="feature"><h3>Built around your roster</h3><p>Enter your swing — 14/7, 8/6, whatever it is — and we project every upcoming break automatically.</p></div>
-      <div class="feature"><h3>Real cached fares</h3><p>Flight prices come from real recent searches, not made-up numbers — always confirm the final price before booking.</p></div>
+      <div class="feature"><h3>Real flight prices</h3><p>Flight prices come from real recent searches, not made-up numbers — always confirm the final price before booking.</p></div>
       <div class="feature"><h3>Free to start</h3><p>No credit card needed. Create an account only if you want your setup saved and synced across devices.</p></div>
     </div>
   </div>
@@ -415,7 +415,7 @@
 
 </main>
 
-<footer>Sign in to save your setup to an account and access it from any device. Deal prices are cached fares, not a live quote — always confirm the final price before booking.</footer>
+<footer>Sign in to save your setup to an account and access it from any device. Deal prices are from recent searches, not a live quote — always confirm the final price before booking.</footer>
 
 <script>
 // ---------- user identity (no login — device-scoped id) ----------
@@ -1175,7 +1175,7 @@ function dealsMarkup(result){
   }
 
   if(result.source === 'no-results' || !result.deals.length){
-    return `<div class="disclaimer">No cached fares found yet for this route and these dates. Travelpayouts' prices come from recent real searches, so this can change — worth checking back closer to your break.</div>`;
+    return `<div class="disclaimer">No fares found yet for this route and these dates. Prices come from recent real searches, so this can change — worth checking back closer to your break.</div>`;
   }
 
   const dealsHtml = result.deals.map(d => `
@@ -1193,7 +1193,7 @@ function dealsMarkup(result){
   `).join('');
 
   return `
-    <div class="disclaimer">💰 Real cached fares from Aviasales, found within the last week — dates shown are the actual flight found near your break, not guaranteed to match it exactly. "Book this fare" is a real, trackable booking link.</div>
+    <div class="disclaimer">💰 Real fares from Aviasales, found within the last week — dates shown are the actual flight found near your break, not guaranteed to match it exactly. "Book this fare" is a real, trackable booking link.</div>
     <div class="deals-grid">${dealsHtml}</div>
   `;
 }

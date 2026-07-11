@@ -1,0 +1,11 @@
+<svg viewBox="0 0 440 120" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(10,10)">
+    <rect width="100" height="100" rx="24" fill="#0a1a20"/>
+    <path d="M 28 43 A 22 22 0 0 1 72 43 Z" fill="#ffb648"/>
+    <path d="M 28 43 A 22 22 0 0 0 72 43 Z" fill="#21d0b8"/>
+    <path d="M8 53 Q 24 45, 38 53 T 68 53 T 92 53 V 84 H8 Z" fill="#0a1a20"/>
+    <path d="M8 65 Q 24 57, 38 65 T 68 65 T 92 65" stroke="#21d0b8" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.85"/>
+    <path d="M8 77 Q 24 69, 38 77 T 68 77 T 92 77" stroke="#21d0b8" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.4"/>
+  </g>
+  <text x="130" y="74" font-family="Poppins, 'Segoe UI', sans-serif" font-weight="800" font-size="46" letter-spacing="-0.5" fill="#eef8f6">Next Break<tspan fill="#ffb648">.</tspan></text>
+</svg>

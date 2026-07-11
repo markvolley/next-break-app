@@ -203,7 +203,12 @@
   .setup-mode-toggle button{min-width:120px;}
   .swing-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;align-items:end;}
   .swing-field{min-width:0;}
-  .swing-field label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:500;}
+  .swing-field label{display:flex;align-items:center;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:500;}
+  .info-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex:none;border-radius:50%;background:rgba(244,238,227,0.18);color:var(--muted);font-size:10px;font-weight:700;font-style:normal;margin-left:6px;cursor:help;position:relative;}
+  .info-icon:hover,.info-icon:focus{outline:none;background:rgba(244,238,227,0.3);color:var(--text);}
+  .info-icon:hover .info-tooltip,.info-icon:focus .info-tooltip{opacity:1;visibility:visible;transform:translate(-50%,0);}
+  .info-tooltip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translate(-50%,4px);background:var(--panel2);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:500;line-height:1.45;padding:9px 11px;border-radius:8px;width:210px;opacity:0;visibility:hidden;transition:opacity .15s ease,transform .15s ease;z-index:20;pointer-events:none;box-shadow:var(--shadow);text-align:left;white-space:normal;}
+  .info-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--panel2);}
   .swing-field input{background:rgba(244,238,227,0.07);border:1px solid rgba(244,238,227,0.2);border-radius:10px;}
   .swing-submit{white-space:nowrap;border-radius:10px;}
   @media (max-width: 640px){
@@ -233,6 +238,9 @@
     header > div{width:100%;justify-content:space-between;}
     .account-area{margin-left:auto;}
     .account-email{max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .info-tooltip{left:0;transform:translate(0,4px);width:180px;}
+    .info-icon:hover .info-tooltip,.info-icon:focus .info-tooltip{transform:translate(0,0);}
+    .info-tooltip::after{left:7px;transform:none;}
     main{padding:14px;}
     .panel{padding:16px;}
     .row{flex-direction:column;gap:0;}
@@ -352,30 +360,29 @@
 
       <div class="swing-row">
         <div class="swing-field">
-          <label>Hometown</label>
+          <label>Hometown<span class="info-icon" tabindex="0">i<span class="info-tooltip">Where you're based — we use this to show local things to do near you.</span></span></label>
           <input type="text" id="hometown" placeholder="e.g. Karratha, WA" required>
         </div>
         <div class="swing-field">
-          <label>Home airport</label>
+          <label>Home airport<span class="info-icon" tabindex="0">i<span class="info-tooltip">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane).</span></span></label>
           <input type="text" id="originAirport" placeholder="e.g. PER" maxlength="4" style="text-transform:uppercase;" required>
         </div>
         <div id="patternFields" style="display:contents;">
           <div class="swing-field">
-            <label>Days on</label>
+            <label>Days on<span class="info-icon" tabindex="0">i<span class="info-tooltip">How many days you work in a row before your break starts.</span></span></label>
             <input type="number" id="daysOn" min="1" value="14" required>
           </div>
           <div class="swing-field">
-            <label>Days off</label>
+            <label>Days off<span class="info-icon" tabindex="0">i<span class="info-tooltip">How many consecutive days off you get each cycle — this is the length of each break.</span></span></label>
             <input type="number" id="daysOff" min="1" value="7" required>
           </div>
           <div class="swing-field">
-            <label>Next break starts</label>
+            <label>Next break starts<span class="info-icon" tabindex="0">i<span class="info-tooltip">The first day of your next upcoming break. We project every future break from this date using your swing.</span></span></label>
             <input type="date" id="nextBreakStart" onclick="openDatePicker(this)" required>
           </div>
         </div>
         <button class="btn cta-mango swing-submit" id="saveSetupBtn" onclick="saveSetup()">See deals</button>
       </div>
-      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane).</div>
 
       <div id="manualFields" style="display:none;margin-top:16px;">
         <div id="manualRows"></div>

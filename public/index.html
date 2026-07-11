@@ -1189,26 +1189,34 @@ function renderBreaksList(){
   }
 }
 
-// ---------- destination photos (curated list — every real deal destination
-// maps to one of these categories, so every card always gets a photo) ----------
-const DEST_PHOTOS = {
-  tropicalBeach: 'https://images.unsplash.com/photo-1561571994-3c61c554181a?auto=format&fit=crop&w=800&q=65',
-  citySkyline:   'https://images.unsplash.com/photo-1775866914924-410fe9d914db?auto=format&fit=crop&w=800&q=65',
-  auLaneway:     'https://images.unsplash.com/photo-1720522753737-f2e630fdf69c?auto=format&fit=crop&w=800&q=65',
-  scenic:        'https://images.unsplash.com/photo-1608953029601-7a6e5e7fd548?auto=format&fit=crop&w=800&q=65',
-  desertPool:    'https://images.unsplash.com/photo-1688578731898-f2ae07db8ecf?auto=format&fit=crop&w=800&q=65'
-};
+// ---------- destination photos (a real, unique photo of the actual place for
+// every one of the 22 fixed destinations in lib/travelpayouts.js) ----------
 const DEST_PHOTO_BY_IATA = {
-  DPS:'tropicalBeach', HKT:'tropicalBeach', NAN:'tropicalBeach', VLI:'tropicalBeach', RAR:'tropicalBeach',
-  HNL:'tropicalBeach', OOL:'tropicalBeach', CNS:'tropicalBeach', BME:'tropicalBeach',
-  TYO:'citySkyline', SIN:'citySkyline', BKK:'citySkyline', SGN:'citySkyline', HKG:'citySkyline', LAX:'citySkyline',
-  MEL:'auLaneway', SYD:'auLaneway', ADL:'auLaneway', AKL:'auLaneway',
-  ZQN:'scenic', YYJ:'scenic',
-  PSP:'desertPool'
+  DPS: 'https://images.unsplash.com/photo-1539367628448-4bc5c9d171c8?auto=format&fit=crop&w=800&q=65', // Bali
+  HKT: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?auto=format&fit=crop&w=800&q=65', // Phuket
+  ZQN: 'https://images.unsplash.com/photo-1547314283-befb6cc5cf29?auto=format&fit=crop&w=800&q=65', // Queenstown
+  OOL: 'https://images.unsplash.com/photo-1591701729564-3b5325d5a4bd?auto=format&fit=crop&w=800&q=65', // Gold Coast
+  NAN: 'https://images.unsplash.com/photo-1756048830711-3e69f12ddf74?auto=format&fit=crop&w=800&q=65', // Fiji
+  TYO: 'https://images.unsplash.com/photo-1682985942242-31413035c2db?auto=format&fit=crop&w=800&q=65', // Tokyo
+  SIN: 'https://images.unsplash.com/photo-1620033263019-f2ec2c738a60?auto=format&fit=crop&w=800&q=65', // Singapore
+  CNS: 'https://images.unsplash.com/photo-1587139223877-04cb899fa3e8?auto=format&fit=crop&w=800&q=65', // Cairns
+  YYJ: 'https://images.unsplash.com/photo-1631412221891-7a2fbf9ac2e5?auto=format&fit=crop&w=800&q=65', // Vancouver Island
+  PSP: 'https://images.unsplash.com/photo-1669694575282-03ed7faf6360?auto=format&fit=crop&w=800&q=65', // Palm Springs
+  MEL: 'https://images.unsplash.com/photo-1587382397488-d52c9de24b18?auto=format&fit=crop&w=800&q=65', // Melbourne
+  AKL: 'https://images.unsplash.com/photo-1584874828636-dcb9a20a300a?auto=format&fit=crop&w=800&q=65', // Auckland
+  HNL: 'https://images.unsplash.com/photo-1698094276348-c542aa9c5609?auto=format&fit=crop&w=800&q=65', // Honolulu
+  LAX: 'https://images.unsplash.com/photo-1597982087634-9884f03198ce?auto=format&fit=crop&w=800&q=65', // Los Angeles
+  BKK: 'https://images.unsplash.com/photo-1563492065599-3520f775eeed?auto=format&fit=crop&w=800&q=65', // Bangkok
+  SGN: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=800&q=65', // Ho Chi Minh City
+  VLI: 'https://images.unsplash.com/photo-1700661328585-71e8e98d5800?auto=format&fit=crop&w=800&q=65', // Vanuatu
+  RAR: 'https://images.unsplash.com/photo-1588782461976-eb6b1c500446?auto=format&fit=crop&w=800&q=65', // Rarotonga
+  SYD: 'https://images.unsplash.com/photo-1624138784614-87fd1b6528f8?auto=format&fit=crop&w=800&q=65', // Sydney
+  ADL: 'https://images.unsplash.com/photo-1702252212983-db7e428cc3cf?auto=format&fit=crop&w=800&q=65', // Adelaide
+  BME: 'https://images.unsplash.com/photo-1592123182471-fdeb2632474f?auto=format&fit=crop&w=800&q=65', // Broome
+  HKG: 'https://images.unsplash.com/photo-1620015092538-e33c665fc181?auto=format&fit=crop&w=800&q=65', // Hong Kong
 };
 function destPhotoUrl(iata){
-  const bucket = DEST_PHOTO_BY_IATA[iata];
-  return bucket ? DEST_PHOTOS[bucket] : null;
+  return DEST_PHOTO_BY_IATA[iata] || null;
 }
 
 function dealsMarkup(result){

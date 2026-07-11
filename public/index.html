@@ -76,17 +76,18 @@
   .accordion-body{padding:0 18px 18px;border-top:1px solid var(--border);}
   .accordion-body .disclaimer{margin:16px 0;}
   .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
-  .deal-card{border:1px solid var(--border);border-radius:16px;padding:14px;background:var(--panel2);}
+  .deal-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;}
+  .deal-card img{width:100%;height:130px;object-fit:cover;display:block;background:var(--border);}
+  .deal-card-body{padding:14px;}
   .deal-card .region-tag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 10px;border-radius:var(--radius-pill);margin-bottom:8px;}
   .deal-card .region-tag.domestic{background:rgba(63,182,168,0.18);color:var(--accent);}
   .deal-card .region-tag.intl{background:rgba(232,163,61,0.18);color:var(--accent2);}
+  .deal-card .dest-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .deal-card .dest{font-weight:700;font-size:14.5px;margin-bottom:2px;}
   .deal-card .type{color:var(--muted);font-size:12px;margin-bottom:10px;}
-  .deal-card .price-row{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;}
-  .deal-card .price{font-size:18px;font-weight:800;color:var(--accent);}
-  .deal-card .orig{text-decoration:line-through;color:var(--muted);font-size:12.5px;}
-  .deal-card .discount{color:var(--accent2);font-size:12px;font-weight:700;}
-  .deal-card .blurb{font-size:12.5px;color:var(--muted);margin:8px 0 10px;line-height:1.4;}
+  .deal-card .price{font-size:17px;font-weight:800;color:var(--accent2);white-space:nowrap;}
+  .deal-card .discount{color:var(--accent2);font-size:12px;font-weight:700;display:block;margin-bottom:8px;}
+  .deal-card .blurb{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4;}
   .deal-card a{color:var(--accent);font-size:12.5px;text-decoration:none;font-weight:600;display:block;margin-top:6px;}
   .deal-card a:hover{text-decoration:underline;}
   .deal-card a:first-of-type{margin-top:0;}
@@ -158,37 +159,59 @@
   .avatar-preview img{width:100%;height:100%;object-fit:cover;}
 
   /* ---------- landing page (first-time / anonymous visitors) ---------- */
-  .hero{position:relative;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px;height:440px;background:var(--bg-soft);}
-  .hero-carousel{position:absolute;inset:0;}
-  .hero-slide{position:absolute;inset:0;opacity:0;transition:opacity 1s ease;}
-  .hero-slide.active{opacity:1;}
-  .hero-slide img{width:100%;height:100%;object-fit:cover;display:block;}
-  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(to top, rgba(8,19,25,0.92) 0%, rgba(8,19,25,0.55) 38%, rgba(8,19,25,0.05) 68%);pointer-events:none;}
-  .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:34px 40px;z-index:2;}
-  .hero-title{margin:0 0 10px;font-size:34px;font-weight:800;color:#fff;letter-spacing:-0.02em;font-family:var(--font-head);}
-  .hero-sub{margin:0 0 20px;color:rgba(255,255,255,0.85);font-size:15px;max-width:480px;line-height:1.55;}
-  .hero-ctas{display:flex;gap:12px;flex-wrap:wrap;}
-  .hero-ctas .btn.secondary{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.55);color:#fff;box-shadow:none;}
-  .hero-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;background:rgba(8,19,25,0.4);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-  .hero-arrow.prev{left:14px;}
-  .hero-arrow.next{right:14px;}
-  .hero-arrow:hover{background:rgba(8,19,25,0.65);}
-  .hero-dots{position:absolute;bottom:16px;right:20px;z-index:3;display:flex;gap:6px;}
-  .hero-dots button{width:8px;height:8px;border-radius:50%;border:none;background:rgba(255,255,255,0.4);cursor:pointer;padding:0;}
-  .hero-dots button.active{background:#fff;}
+  .hero{position:relative;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px;height:460px;background:var(--bg-soft);}
+  .hero-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(to top, rgba(4,10,14,0.85) 0%, rgba(4,10,14,0.35) 45%, rgba(4,10,14,0.05) 75%);pointer-events:none;}
+  .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:36px 40px;z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;}
+  .hero-text{max-width:560px;}
+  .hero-title{margin:0 0 12px;font-size:40px;line-height:1.12;font-weight:800;color:#fff;letter-spacing:-0.02em;font-family:var(--font-head);}
+  .hero-sub{margin:0;color:rgba(255,255,255,0.85);font-size:15px;max-width:460px;line-height:1.55;}
+  .hero-cta-block{flex-shrink:0;text-align:right;}
+  .hero-microcopy{margin-top:10px;font-size:12.5px;color:rgba(255,255,255,0.75);}
+  .btn.cta-mango{background:linear-gradient(135deg, var(--accent2), #ffcf80);color:#3a2100;box-shadow:0 4px 16px rgba(255,182,72,0.35);}
+  .btn.cta-mango:hover:not(:disabled){background:linear-gradient(135deg, #ffcf80, #ffcf80);}
   .landing-features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
   .landing-features .feature{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
   .landing-features .feature h3{margin:0 0 8px;font-size:14.5px;font-family:var(--font-head);}
   .landing-features .feature p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.55;}
   @media (max-width: 640px){
-    .hero{height:360px;}
-    .hero-overlay{padding:22px 20px;}
-    .hero-title{font-size:24px;}
+    .hero{height:420px;}
+    .hero-overlay{padding:22px 20px;flex-direction:column;align-items:flex-start;}
+    .hero-title{font-size:26px;}
     .hero-sub{font-size:13.5px;}
-    .hero-ctas .btn{flex:1;text-align:center;}
-    .hero-arrow{width:32px;height:32px;font-size:17px;}
+    .hero-cta-block{text-align:left;width:100%;}
+    .hero-cta-block .btn{width:100%;}
     .landing-features{grid-template-columns:1fr;}
   }
+
+  /* ---------- header ghost/link buttons (logged-out state) ---------- */
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;}
+  .btn.ghost:hover:not(:disabled){background:var(--panel2);}
+  .btn-link{background:none;border:none;color:var(--text);font-weight:600;font-size:14px;cursor:pointer;padding:8px 10px;font-family:var(--font-body);}
+  .btn-link:hover{color:var(--accent2);}
+
+  /* ---------- setup: single-row "Your swing" panel ---------- */
+  .setup-header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
+  .setup-header-row h2{margin:0;}
+  .setup-mode-toggle{margin:0;width:auto;}
+  .setup-mode-toggle button{min-width:120px;}
+  .swing-row{display:flex;gap:14px;align-items:end;flex-wrap:wrap;}
+  .swing-field{flex:1;min-width:120px;}
+  .swing-field label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:500;}
+  .swing-submit{flex:0 0 auto;white-space:nowrap;}
+  @media (max-width: 640px){
+    .setup-header-row{flex-direction:column;align-items:stretch;}
+    .setup-mode-toggle{flex-direction:column;}
+    .swing-row{flex-direction:column;align-items:stretch;}
+    .swing-submit{width:100%;}
+  }
+
+  /* ---------- break selector + photo deal cards ---------- */
+  .break-select-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:4px;}
+  .break-select-row h2{margin:0;}
+  .break-quicklinks{color:var(--muted);font-size:13px;}
+  .break-quicklinks a{color:var(--muted);text-decoration:none;font-weight:600;}
+  .break-quicklinks a:hover{color:var(--accent2);text-decoration:underline;}
 
   /* ---------- mobile ---------- */
   @media (max-width: 640px){
@@ -221,7 +244,7 @@
 <body>
 
 <header>
-  <h1 onclick="showView('landing')" style="cursor:pointer;"><img src="/logo-icon.svg" alt="Next Break" width="32" height="32" style="border-radius:9px;display:block;"> Next Break</h1>
+  <h1 onclick="showView('landing')" style="cursor:pointer;">next break<span style="color:var(--accent2);">.</span></h1>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <div class="account-area" id="accountArea"></div>
   </div>
@@ -275,20 +298,15 @@
   <!-- LANDING VIEW (first-time / anonymous visitors) -->
   <div id="view-landing" style="display:none;">
     <div class="hero">
-      <div class="hero-carousel" id="heroCarousel">
-        <div class="hero-slide"><img src="https://images.unsplash.com/photo-1561571994-3c61c554181a?auto=format&amp;fit=crop&amp;w=1600&amp;q=70" alt="Palm trees silhouetted against a tropical sunset" loading="eager"></div>
-        <div class="hero-slide"><img src="https://images.unsplash.com/photo-1601999705946-fbf42c3c6c66?auto=format&amp;fit=crop&amp;w=1600&amp;q=70" alt="Overwater bungalows on a turquoise lagoon" loading="lazy"></div>
-        <div class="hero-slide"><img src="https://images.unsplash.com/photo-1768639401082-f45f9241c768?auto=format&amp;fit=crop&amp;w=1600&amp;q=70" alt="Turquoise water winding through a tropical cove" loading="lazy"></div>
-        <div class="hero-slide"><img src="https://images.unsplash.com/photo-1519830103773-4bdc5166a0db?auto=format&amp;fit=crop&amp;w=1600&amp;q=70" alt="Jungle waterfall" loading="lazy"></div>
-        <button class="hero-arrow prev" onclick="heroPrev()" aria-label="Previous slide">‹</button>
-        <button class="hero-arrow next" onclick="heroNext()" aria-label="Next slide">›</button>
-        <div class="hero-dots" id="heroDots"></div>
-      </div>
+      <img class="hero-photo" src="https://images.unsplash.com/photo-1774442960702-31cf7ff54c3b?auto=format&amp;fit=crop&amp;w=1800&amp;q=70" alt="Overwater bungalows at dusk" loading="eager">
       <div class="hero-overlay">
-        <h1 class="hero-title">Make every break unforgettable<span style="color:var(--accent2);">.</span></h1>
-        <p class="hero-sub">Enter your roster once and discover flights, weekend escapes, and experiences perfectly matched to your days off.</p>
-        <div class="hero-ctas">
-          <button class="btn" onclick="scrollToSetup()">Search deals</button>
+        <div class="hero-text">
+          <h1 class="hero-title">Seven days off deserves more than the couch<span style="color:var(--accent2);">.</span></h1>
+          <p class="hero-sub">Enter your roster once — every break matched with flights and escapes worth the airfare.</p>
+        </div>
+        <div class="hero-cta-block">
+          <button class="btn cta-mango" onclick="scrollToSetup()">Plan my next break</button>
+          <div class="hero-microcopy">Free · real prices · no card</div>
         </div>
       </div>
     </div>
@@ -305,53 +323,48 @@
        setup" button. showView() controls which combination is visible. -->
   <div id="view-setup" style="display:none;">
     <div class="panel">
-      <h2>1. Your details</h2>
-      <div class="row">
-        <div>
-          <label>Hometown (for "things to do") *</label>
+      <div class="setup-header-row">
+        <h2>Your swing</h2>
+        <div class="mode-toggle setup-mode-toggle">
+          <button id="modeBtnPattern" onclick="setRosterMode('pattern')">Repeating swing</button>
+          <button id="modeBtnManual" onclick="setRosterMode('manual')">Manual dates</button>
+        </div>
+      </div>
+
+      <div class="swing-row">
+        <div class="swing-field">
+          <label>Hometown</label>
           <input type="text" id="hometown" placeholder="e.g. Karratha, WA" required>
         </div>
-        <div>
-          <label>Home airport (for real flight prices) *</label>
+        <div class="swing-field">
+          <label>Home airport</label>
           <input type="text" id="originAirport" placeholder="e.g. PER" maxlength="4" style="text-transform:uppercase;" required>
         </div>
-      </div>
-      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane).</div>
-    </div>
-
-    <div class="panel">
-      <h2>2. Your roster</h2>
-      <div class="mode-toggle">
-        <button id="modeBtnPattern" onclick="setRosterMode('pattern')">Repeating swing (e.g. 14 on / 7 off)</button>
-        <button id="modeBtnManual" onclick="setRosterMode('manual')">Manual break dates</button>
-      </div>
-
-      <div id="patternFields">
-        <div class="row">
-          <div>
-            <label>Days ON (working) *</label>
+        <div id="patternFields" style="display:contents;">
+          <div class="swing-field">
+            <label>Days on</label>
             <input type="number" id="daysOn" min="1" value="14" required>
           </div>
-          <div>
-            <label>Days OFF (break) *</label>
+          <div class="swing-field">
+            <label>Days off</label>
             <input type="number" id="daysOff" min="1" value="7" required>
           </div>
-          <div>
-            <label>Start date of your next (or current) break *</label>
+          <div class="swing-field">
+            <label>Next break starts</label>
             <input type="date" id="nextBreakStart" onclick="openDatePicker(this)" required>
           </div>
         </div>
-        <div class="hint">We'll project this cycle forward to show your next several breaks automatically.</div>
+        <button class="btn cta-mango swing-submit" id="saveSetupBtn" onclick="saveSetup()">See deals</button>
       </div>
+      <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane).</div>
 
-      <div id="manualFields" style="display:none;">
+      <div id="manualFields" style="display:none;margin-top:16px;">
         <div id="manualRows"></div>
         <button class="btn secondary small" onclick="addManualRow()">+ Add a break</button>
         <div class="hint">Add at least one break with both start and end dates filled in.</div>
-      </div>
-
-      <div style="margin-top:20px;">
-        <button class="btn btn-block-mobile" id="saveSetupBtn" onclick="saveSetup()">See deals</button>
+        <div style="margin-top:20px;">
+          <button class="btn cta-mango btn-block-mobile" id="saveSetupBtnManual" onclick="saveSetup()">See deals</button>
+        </div>
       </div>
     </div>
   </div>
@@ -366,8 +379,10 @@
     <div id="accountPromo" class="account-promo" style="display:none;"></div>
 
     <div class="panel">
-      <h2>Upcoming breaks</h2>
-      <div class="hint" style="margin:0 0 14px;">Click a break to see (or unlock) travel deals for those dates.</div>
+      <div class="break-select-row">
+        <h2 id="breakHeading">Upcoming breaks</h2>
+        <div class="break-quicklinks" id="breakQuicklinks"></div>
+      </div>
       <div id="breaksList"></div>
     </div>
 
@@ -461,8 +476,8 @@ function renderAccountArea(){
     `;
   }else{
     area.innerHTML = `
-      <button class="btn small" onclick="openAuthModal('signup')">Create account</button>
-      <button class="nav-btn" onclick="openAuthModal('login')">Log in</button>
+      <button class="btn-link" onclick="openAuthModal('login')">Log in</button>
+      <button class="btn ghost small" onclick="openAuthModal('signup')">Create account</button>
     `;
   }
 }
@@ -828,8 +843,12 @@ function setRosterMode(mode){
   rosterModeDraft = mode;
   document.getElementById('modeBtnPattern').classList.toggle('active', mode==='pattern');
   document.getElementById('modeBtnManual').classList.toggle('active', mode==='manual');
-  document.getElementById('patternFields').style.display = mode==='pattern' ? '' : 'none';
+  // #patternFields uses display:contents (not '') so its 3 fields sit
+  // inline in the same flex row as hometown/airport rather than wrapping
+  // onto their own line.
+  document.getElementById('patternFields').style.display = mode==='pattern' ? 'contents' : 'none';
   document.getElementById('manualFields').style.display = mode==='manual' ? '' : 'none';
+  document.getElementById('saveSetupBtn').style.display = mode==='pattern' ? '' : 'none';
 }
 
 function addManualRow(start, end){
@@ -906,7 +925,10 @@ async function saveSetup(){
     },
     manualBreaks: manualBreaksDraft.map(r => ({start:r.start, end:r.end}))
   };
-  const btn = document.getElementById('saveSetupBtn');
+  // Pattern and manual mode each have their own visible "See deals" button
+  // (the pattern one sits inline in the swing row; the manual one sits
+  // below the add-a-break list) — busy-state the one actually on screen.
+  const btn = document.getElementById(rosterModeDraft === 'manual' ? 'saveSetupBtnManual' : 'saveSetupBtn');
   setBtnBusy(btn, true, 'Saving…');
   try{
     await api('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
@@ -942,55 +964,6 @@ function markLandingSeen(){
   localStorage.setItem(LANDING_SEEN_KEY, '1');
 }
 
-const HERO_SLIDE_COUNT = 4;
-let heroIndex = 0;
-let heroTimer = null;
-
-function renderHeroDots(){
-  const dotsEl = document.getElementById('heroDots');
-  if(!dotsEl) return;
-  dotsEl.innerHTML = '';
-  for(let i = 0; i < HERO_SLIDE_COUNT; i++){
-    const b = document.createElement('button');
-    if(i === heroIndex) b.classList.add('active');
-    b.setAttribute('aria-label', 'Go to slide ' + (i + 1));
-    b.onclick = () => goToHeroSlide(i);
-    dotsEl.appendChild(b);
-  }
-}
-function updateHeroSlides(){
-  const slides = document.querySelectorAll('#heroCarousel .hero-slide');
-  slides.forEach((el, i) => el.classList.toggle('active', i === heroIndex));
-  renderHeroDots();
-}
-function goToHeroSlide(i){
-  heroIndex = i;
-  updateHeroSlides();
-  restartHeroTimer();
-}
-function heroNext(){
-  heroIndex = (heroIndex + 1) % HERO_SLIDE_COUNT;
-  updateHeroSlides();
-  restartHeroTimer();
-}
-function heroPrev(){
-  heroIndex = (heroIndex - 1 + HERO_SLIDE_COUNT) % HERO_SLIDE_COUNT;
-  updateHeroSlides();
-  restartHeroTimer();
-}
-function restartHeroTimer(){
-  clearInterval(heroTimer);
-  heroTimer = setInterval(heroNext, 5000);
-}
-function startHeroCarousel(){
-  updateHeroSlides();
-  restartHeroTimer();
-}
-function stopHeroCarousel(){
-  clearInterval(heroTimer);
-  heroTimer = null;
-}
-
 // ---------- view switching ----------
 let currentView = 'dashboard';
 async function showView(view){
@@ -1019,12 +992,7 @@ async function showView(view){
   const navProfile = document.getElementById('navProfile');
   if(navProfile) navProfile.classList.toggle('active', view==='profile');
 
-  if(view === 'landing'){
-    startHeroCarousel();
-  }else{
-    stopHeroCarousel();
-    markLandingSeen();
-  }
+  if(view !== 'landing') markLandingSeen();
 
   if(view==='setup' || view==='landing') await fillSetupForm();
   if(view==='dashboard') await renderDashboard();
@@ -1039,15 +1007,10 @@ function scrollToSetup(){
 // ---------- dashboard ----------
 let currentBreaks = [];
 let openBreakKey = null;
-let userHasCollapsed = false;
 let realPricesAvailable = false;
 const dealsCache = {};   // breakKey -> {source, currencySymbol, deals}
 const dealsLoading = {}; // breakKey -> true while a fetch is in flight
 
-function fmtDateStr(iso){
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric', year:'numeric'});
-}
 function fmtDateTime(isoWithOffset){
   const d = new Date(isoWithOffset);
   return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
@@ -1101,24 +1064,26 @@ async function renderDashboard(){
   document.getElementById('sumRoster').textContent = currentBreaks.length + ' upcoming break(s)';
 
   if(currentBreaks.length === 0){
+    document.getElementById('breakHeading').textContent = 'Upcoming breaks';
+    document.getElementById('breakQuicklinks').innerHTML = '';
     document.getElementById('breaksList').innerHTML = '<div class="empty">No upcoming breaks yet — head to Setup to add your roster.</div>';
     renderActivities(data.hometown);
     return;
   }
 
-  if(openBreakKey !== null && !currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = null;
-  if(openBreakKey === null && !userHasCollapsed) openBreakKey = currentBreaks[0].key;
+  // Always land on the soonest break unless the current selection still
+  // matches one of the (re-fetched) upcoming breaks.
+  if(openBreakKey === null || !currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = currentBreaks[0].key;
 
   renderBreaksList();
   if(openBreakKey && !dealsCache[openBreakKey]) loadDeals(openBreakKey);
   renderActivities(data.hometown);
 }
 
-function toggleBreak(key){
-  openBreakKey = (openBreakKey === key) ? null : key;
-  userHasCollapsed = true;
+function selectBreak(key){
+  openBreakKey = key;
   renderBreaksList();
-  if(openBreakKey && !dealsCache[openBreakKey]) loadDeals(openBreakKey);
+  if(!dealsCache[key]) loadDeals(key);
 }
 
 async function loadDeals(key){
@@ -1134,48 +1099,70 @@ async function loadDeals(key){
   if(openBreakKey === key) renderBreaksList();
 }
 
+// "11–17 Jul" if both dates fall in the same month, otherwise "28 Jun – 3 Jul".
+function fmtDateRange(brk){
+  const s = new Date(brk.start + 'T00:00:00');
+  const e = new Date(brk.end + 'T00:00:00');
+  const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+  if(sameMonth){
+    return `${s.getDate()}–${e.getDate()} ${e.toLocaleDateString(undefined, {month:'short'})}`;
+  }
+  return `${s.getDate()} ${s.toLocaleDateString(undefined, {month:'short'})} – ${e.getDate()} ${e.toLocaleDateString(undefined, {month:'short'})}`;
+}
+
 function renderBreaksList(){
-  const list = document.getElementById('breaksList');
-  list.innerHTML = '';
+  const container = document.getElementById('breaksList');
+  const heading = document.getElementById('breakHeading');
+  const quicklinks = document.getElementById('breakQuicklinks');
 
-  currentBreaks.forEach(brk => {
-    const isOpen = brk.key === openBreakKey;
-    let badge = '';
-    if(brk.isOngoing) badge = '<span class="badge soon">On break now</span>';
-    else if(brk.isSoon) badge = `<span class="badge soon">In ${brk.daysUntil} day${brk.daysUntil===1?'':'s'}</span>`;
-    else badge = `<span class="badge">In ${brk.daysUntil} days</span>`;
+  const selected = currentBreaks.find(b => b.key === openBreakKey) || currentBreaks[0];
+  if(!selected){
+    heading.textContent = 'Upcoming breaks';
+    quicklinks.innerHTML = '';
+    container.innerHTML = '';
+    return;
+  }
 
-    const item = document.createElement('div');
-    item.className = 'accordion-item' + (isOpen ? ' open' : '');
+  heading.textContent = `Break of ${fmtDateRange(selected)}`;
 
-    const header = document.createElement('div');
-    header.className = 'break-row';
-    header.onclick = () => toggleBreak(brk.key);
-    header.innerHTML = `
-      <div>
-        <div class="dates">${fmtDateStr(brk.start)} → ${fmtDateStr(brk.end)}</div>
-        <div class="meta">${brk.duration} day break</div>
-      </div>
-      <div class="right">${badge}<span class="chevron">›</span></div>
-    `;
-    item.appendChild(header);
+  const others = currentBreaks.filter(b => b.key !== selected.key).slice(0, 2);
+  quicklinks.textContent = '';
+  if(others.length){
+    quicklinks.innerHTML = 'Then ' + others.map(b =>
+      `<a href="#" onclick="selectBreak('${b.key}');return false;">${fmtDateRange(b)}</a>`
+    ).join(' · ');
+  }
 
-    if(isOpen){
-      const body = document.createElement('div');
-      body.className = 'accordion-body';
-      const cached = dealsCache[brk.key];
-      if(!cached){
-        body.innerHTML = '<div class="empty">Looking up deals…</div>';
-      }else if(cached.error){
-        body.innerHTML = '<div class="empty">Could not load deals: ' + cached.error + '</div>';
-      }else{
-        body.innerHTML = dealsMarkup(cached);
-      }
-      item.appendChild(body);
-    }
+  const cached = dealsCache[selected.key];
+  if(!cached){
+    container.innerHTML = '<div class="empty">Looking up deals…</div>';
+  }else if(cached.error){
+    container.innerHTML = '<div class="empty">Could not load deals: ' + cached.error + '</div>';
+  }else{
+    container.innerHTML = dealsMarkup(cached);
+  }
+}
 
-    list.appendChild(item);
-  });
+// ---------- destination photos (curated list — every real deal destination
+// maps to one of these categories, so every card always gets a photo) ----------
+const DEST_PHOTOS = {
+  tropicalBeach: 'https://images.unsplash.com/photo-1561571994-3c61c554181a?auto=format&fit=crop&w=800&q=65',
+  citySkyline:   'https://images.unsplash.com/photo-1775866914924-410fe9d914db?auto=format&fit=crop&w=800&q=65',
+  auLaneway:     'https://images.unsplash.com/photo-1720522753737-f2e630fdf69c?auto=format&fit=crop&w=800&q=65',
+  scenic:        'https://images.unsplash.com/photo-1608953029601-7a6e5e7fd548?auto=format&fit=crop&w=800&q=65',
+  desertPool:    'https://images.unsplash.com/photo-1688578731898-f2ae07db8ecf?auto=format&fit=crop&w=800&q=65'
+};
+const DEST_PHOTO_BY_IATA = {
+  DPS:'tropicalBeach', HKT:'tropicalBeach', NAN:'tropicalBeach', VLI:'tropicalBeach', RAR:'tropicalBeach',
+  HNL:'tropicalBeach', OOL:'tropicalBeach', CNS:'tropicalBeach', BME:'tropicalBeach',
+  TYO:'citySkyline', SIN:'citySkyline', BKK:'citySkyline', SGN:'citySkyline', HKG:'citySkyline', LAX:'citySkyline',
+  MEL:'auLaneway', SYD:'auLaneway', ADL:'auLaneway', AKL:'auLaneway',
+  ZQN:'scenic', YYJ:'scenic',
+  PSP:'desertPool'
+};
+function destPhotoUrl(iata){
+  const bucket = DEST_PHOTO_BY_IATA[iata];
+  return bucket ? DEST_PHOTOS[bucket] : null;
 }
 
 function dealsMarkup(result){
@@ -1189,19 +1176,27 @@ function dealsMarkup(result){
     return `<div class="disclaimer">No fares found yet for this route and these dates. Prices come from recent real searches, so this can change — worth checking back closer to your break.</div>`;
   }
 
-  const dealsHtml = result.deals.map(d => `
+  const dealsHtml = result.deals.map(d => {
+    const photo = destPhotoUrl(d.iata);
+    return `
     <div class="deal-card">
-      <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
-      <div class="dest">${d.name}</div>
-      <div class="type">${d.airline} ${d.flightNumber} · ${d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s')}</div>
-      <div class="price-row">
-        <span class="price">${sym}${Math.round(d.price)}</span>
+      ${photo ? `<img src="${photo}" alt="" loading="lazy">` : ''}
+      <div class="deal-card-body">
+        <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
+        <div class="dest-row">
+          <div>
+            <div class="dest">${d.name}</div>
+            <div class="type">${d.airline} ${d.flightNumber} · ${d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s')}</div>
+          </div>
+          <div class="price">${sym}${Math.round(d.price)}</div>
+        </div>
+        <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
+        <div class="blurb">${d.blurb}</div>
+        <a href="${d.bookUrl}" target="_blank" rel="noopener sponsored">✈️ Book this fare →</a>
       </div>
-      <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
-      <div class="blurb">${d.blurb}</div>
-      <a href="${d.bookUrl}" target="_blank" rel="noopener sponsored">✈️ Book this fare →</a>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <div class="disclaimer">💰 Real fares from Aviasales, found within the last week — dates shown are the actual flight found near your break, not guaranteed to match it exactly. "Book this fare" is a real, trackable booking link.</div>

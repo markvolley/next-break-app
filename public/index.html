@@ -158,31 +158,46 @@
   .avatar-preview{width:88px;height:88px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:var(--muted);overflow:hidden;flex-shrink:0;}
   .avatar-preview img{width:100%;height:100%;object-fit:cover;}
 
-  /* ---------- landing page (first-time / anonymous visitors) ---------- */
-  .hero{position:relative;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px;height:460px;background:var(--bg-soft);}
+  /* ---------- landing page (first-time / anonymous visitors) ----------
+     The hero is full-bleed (sits outside <main>'s max-width container,
+     directly under <header>) and the header itself goes transparent and
+     floats on top of it (see header.landing-mode below) — this is what
+     makes it read as one seamless photo moment instead of a photo-in-a-box
+     with its own separate nav bar above it. */
+  .hero{position:relative;overflow:hidden;height:560px;background:var(--bg-soft);}
   .hero-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
-  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(to top, rgba(4,10,14,0.85) 0%, rgba(4,10,14,0.35) 45%, rgba(4,10,14,0.05) 75%);pointer-events:none;}
-  .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:36px 40px;z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;}
+  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(4,10,14,0.6) 0%, rgba(4,10,14,0.12) 32%, rgba(4,10,14,0.18) 58%, rgba(4,10,14,0.8) 100%);pointer-events:none;}
+  .hero-overlay{position:absolute;left:0;right:0;top:54%;transform:translateY(-50%);padding:0 48px;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;}
   .hero-text{max-width:560px;}
-  .hero-title{margin:0 0 12px;font-size:40px;line-height:1.12;font-weight:800;color:#fff;letter-spacing:-0.02em;font-family:var(--font-head);}
-  .hero-sub{margin:0;color:rgba(255,255,255,0.85);font-size:15px;max-width:460px;line-height:1.55;}
+  .hero-title{margin:0 0 14px;font-size:44px;line-height:1.15;font-weight:800;color:#fff;letter-spacing:-0.02em;font-family:var(--font-head);}
+  .hero-sub{margin:0;color:rgba(255,255,255,0.85);font-size:15.5px;max-width:460px;line-height:1.55;}
   .hero-cta-block{flex-shrink:0;text-align:right;}
   .hero-microcopy{margin-top:10px;font-size:12.5px;color:rgba(255,255,255,0.75);}
   .btn.cta-mango{background:linear-gradient(135deg, var(--accent2), #ffcf80);color:#3a2100;box-shadow:0 4px 16px rgba(255,182,72,0.35);}
   .btn.cta-mango:hover:not(:disabled){background:linear-gradient(135deg, #ffcf80, #ffcf80);}
-  .landing-features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
+  .landing-features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0 20px;}
   .landing-features .feature{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
   .landing-features .feature h3{margin:0 0 8px;font-size:14.5px;font-family:var(--font-head);}
   .landing-features .feature p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.55;}
   @media (max-width: 640px){
-    .hero{height:420px;}
-    .hero-overlay{padding:22px 20px;flex-direction:column;align-items:flex-start;}
+    .hero{height:480px;}
+    .hero-overlay{padding:20px;top:auto;bottom:0;transform:none;flex-direction:column;align-items:flex-start;}
     .hero-title{font-size:26px;}
     .hero-sub{font-size:13.5px;}
     .hero-cta-block{text-align:left;width:100%;}
     .hero-cta-block .btn{width:100%;}
     .landing-features{grid-template-columns:1fr;}
   }
+
+  /* ---------- header: transparent overlay mode on the landing hero ---------- */
+  header.landing-mode{position:absolute;background:transparent;backdrop-filter:none;border-bottom:none;top:0;left:0;right:0;z-index:20;}
+  /* The ghost/link buttons are tuned for sitting on the dark solid bar by
+     default (var(--border)/var(--text)) — over a bright photo those are too
+     low-contrast, so brighten them specifically in landing-mode. */
+  header.landing-mode .btn.ghost{border-color:rgba(255,255,255,0.75);color:#fff;}
+  header.landing-mode .btn.ghost:hover:not(:disabled){background:rgba(255,255,255,0.12);}
+  header.landing-mode .btn-link{color:#fff;}
+  header.landing-mode .btn-link:hover{color:var(--accent2);}
 
   /* ---------- header ghost/link buttons (logged-out state) ---------- */
   .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;}
@@ -250,6 +265,23 @@
   </div>
 </header>
 
+<!-- Full-bleed landing hero — lives outside <main>'s max-width container,
+     directly under <header>, so the header can float transparently on top
+     of it (see showView()'s header.landing-mode toggle). -->
+<div class="hero" id="landingHero" style="display:none;">
+  <img class="hero-photo" src="https://images.unsplash.com/photo-1774442960702-31cf7ff54c3b?auto=format&amp;fit=crop&amp;w=1800&amp;q=70" alt="Overwater bungalows at dusk" loading="eager">
+  <div class="hero-overlay">
+    <div class="hero-text">
+      <h1 class="hero-title">Seven days off deserves more than the couch<span style="color:var(--accent2);">.</span></h1>
+      <p class="hero-sub">Enter your roster once — every break matched with flights and escapes worth the airfare.</p>
+    </div>
+    <div class="hero-cta-block">
+      <button class="btn cta-mango" onclick="scrollToSetup()">Plan my next break</button>
+      <div class="hero-microcopy">Free · real prices · no card</div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="authModal" hidden onclick="if(event.target===this) closeAuthModal()">
   <div class="modal">
     <button class="modal-close" onclick="closeAuthModal()">✕</button>
@@ -295,21 +327,10 @@
 
   <div id="banners"></div>
 
-  <!-- LANDING VIEW (first-time / anonymous visitors) -->
+  <!-- LANDING VIEW (first-time / anonymous visitors) — the hero itself
+       lives in #landingHero, outside <main>; this just holds what comes
+       after it. -->
   <div id="view-landing" style="display:none;">
-    <div class="hero">
-      <img class="hero-photo" src="https://images.unsplash.com/photo-1774442960702-31cf7ff54c3b?auto=format&amp;fit=crop&amp;w=1800&amp;q=70" alt="Overwater bungalows at dusk" loading="eager">
-      <div class="hero-overlay">
-        <div class="hero-text">
-          <h1 class="hero-title">Seven days off deserves more than the couch<span style="color:var(--accent2);">.</span></h1>
-          <p class="hero-sub">Enter your roster once — every break matched with flights and escapes worth the airfare.</p>
-        </div>
-        <div class="hero-cta-block">
-          <button class="btn cta-mango" onclick="scrollToSetup()">Plan my next break</button>
-          <div class="hero-microcopy">Free · real prices · no card</div>
-        </div>
-      </div>
-    </div>
     <div class="landing-features">
       <div class="feature"><h3>Built around your roster</h3><p>Enter your swing — 14/7, 8/6, whatever it is — and we project every upcoming break automatically.</p></div>
       <div class="feature"><h3>Real flight prices</h3><p>Flight prices come from real recent searches, not made-up numbers — always confirm the final price before booking.</p></div>
@@ -958,7 +979,7 @@ async function fillSetupForm(){
   renderManualRows();
 }
 
-// ---------- landing hero carousel ----------
+// ---------- landing page state ----------
 const LANDING_SEEN_KEY = 'nextbreak_seen_landing';
 function markLandingSeen(){
   localStorage.setItem(LANDING_SEEN_KEY, '1');
@@ -977,6 +998,11 @@ async function showView(view){
   if(view === 'landing' && authState.loggedIn) view = 'dashboard';
 
   currentView = view;
+  document.getElementById('landingHero').style.display = view==='landing' ? '' : 'none';
+  // The header floats transparently on top of the full-bleed hero photo
+  // only while on the landing view; every other view keeps the normal
+  // solid sticky bar.
+  document.querySelector('header').classList.toggle('landing-mode', view==='landing');
   document.getElementById('view-landing').style.display = view==='landing' ? '' : 'none';
   // The setup form lives inline below the hero on the landing page for
   // first-time visitors, and as its own full screen when reached directly

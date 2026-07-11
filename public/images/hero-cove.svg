@@ -1,0 +1,30 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a1a20"/>
+      <stop offset="55%" stop-color="#1d4a4a"/>
+      <stop offset="100%" stop-color="#ffb648" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="lagoon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2fe0c9"/>
+      <stop offset="100%" stop-color="#0d4d47"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky3)"/>
+  <g fill="#f6f7f5" opacity="0.5">
+    <path d="M200 260 q30 -14 55 0 q22 -10 40 4 q-10 8 -25 8 h-90 q-8 -6 20 -12z"/>
+    <path d="M1150 210 q26 -12 48 0 q18 -8 34 4 q-9 7 -22 7 h-78 q-7 -5 18 -11z"/>
+  </g>
+  <path d="M400 520 L420 505 L440 520" stroke="#dff7f2" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M470 500 L490 485 L510 500" stroke="#dff7f2" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <rect x="0" y="560" width="1600" height="340" fill="url(#lagoon)"/>
+  <g stroke="#eafffb" stroke-opacity="0.3" stroke-width="4" fill="none">
+    <path d="M0 610 Q 200 598 400 610 T 800 610 T 1200 610 T 1600 610"/>
+    <path d="M0 660 Q 200 646 400 660 T 800 660 T 1200 660 T 1600 660"/>
+  </g>
+  <path d="M0 900 V420 C120 440 180 520 210 600 C240 700 200 820 260 900 Z" fill="#050f13"/>
+  <path d="M1600 900 V440 C1480 460 1420 540 1390 610 C1360 700 1400 820 1340 900 Z" fill="#050f13"/>
+  <path d="M700 690 q60 -22 130 -4 l-6 22 q-58 -14 -116 4 Z" fill="#08181c"/>
+  <line x1="790" y1="640" x2="790" y2="695" stroke="#08181c" stroke-width="5"/>
+  <path d="M790 640 L840 660" stroke="#08181c" stroke-width="4"/>
+</svg>

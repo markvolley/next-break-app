@@ -157,6 +157,39 @@
   .avatar-preview{width:88px;height:88px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:var(--muted);overflow:hidden;flex-shrink:0;}
   .avatar-preview img{width:100%;height:100%;object-fit:cover;}
 
+  /* ---------- landing page (first-time / anonymous visitors) ---------- */
+  .hero{position:relative;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px;height:440px;background:var(--bg-soft);}
+  .hero-carousel{position:absolute;inset:0;}
+  .hero-slide{position:absolute;inset:0;opacity:0;transition:opacity 1s ease;}
+  .hero-slide.active{opacity:1;}
+  .hero-slide img{width:100%;height:100%;object-fit:cover;display:block;}
+  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(to top, rgba(8,19,25,0.92) 0%, rgba(8,19,25,0.55) 38%, rgba(8,19,25,0.05) 68%);pointer-events:none;}
+  .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:34px 40px;z-index:2;}
+  .hero-title{margin:0 0 10px;font-size:34px;font-weight:800;color:#fff;letter-spacing:-0.02em;font-family:var(--font-head);}
+  .hero-sub{margin:0 0 20px;color:rgba(255,255,255,0.85);font-size:15px;max-width:480px;line-height:1.55;}
+  .hero-ctas{display:flex;gap:12px;flex-wrap:wrap;}
+  .hero-ctas .btn.secondary{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.55);color:#fff;box-shadow:none;}
+  .hero-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;background:rgba(8,19,25,0.4);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .hero-arrow.prev{left:14px;}
+  .hero-arrow.next{right:14px;}
+  .hero-arrow:hover{background:rgba(8,19,25,0.65);}
+  .hero-dots{position:absolute;bottom:16px;right:20px;z-index:3;display:flex;gap:6px;}
+  .hero-dots button{width:8px;height:8px;border-radius:50%;border:none;background:rgba(255,255,255,0.4);cursor:pointer;padding:0;}
+  .hero-dots button.active{background:#fff;}
+  .landing-features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
+  .landing-features .feature{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .landing-features .feature h3{margin:0 0 8px;font-size:14.5px;font-family:var(--font-head);}
+  .landing-features .feature p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.55;}
+  @media (max-width: 640px){
+    .hero{height:360px;}
+    .hero-overlay{padding:22px 20px;}
+    .hero-title{font-size:24px;}
+    .hero-sub{font-size:13.5px;}
+    .hero-ctas .btn{flex:1;text-align:center;}
+    .hero-arrow{width:32px;height:32px;font-size:17px;}
+    .landing-features{grid-template-columns:1fr;}
+  }
+
   /* ---------- mobile ---------- */
   @media (max-width: 640px){
     header{padding:12px 14px;flex-direction:column;align-items:stretch;gap:8px;}
@@ -188,7 +221,7 @@
 <body>
 
 <header>
-  <h1><img src="/logo-icon.svg" alt="Next Break" width="32" height="32" style="border-radius:9px;display:block;"> Next Break <span class="tag">live</span></h1>
+  <h1 onclick="showView('landing')" style="cursor:pointer;"><img src="/logo-icon.svg" alt="Next Break" width="32" height="32" style="border-radius:9px;display:block;"> Next Break <span class="tag">live</span></h1>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <button class="nav-btn" id="navSetup" onclick="showView('setup')">Setup</button>
     <button class="nav-btn" id="navDash" onclick="showView('dashboard')">My Breaks</button>
@@ -240,6 +273,34 @@
 <main>
 
   <div id="banners"></div>
+
+  <!-- LANDING VIEW (first-time / anonymous visitors) -->
+  <div id="view-landing" style="display:none;">
+    <div class="hero">
+      <div class="hero-carousel" id="heroCarousel">
+        <div class="hero-slide"><img src="/images/hero-beach.svg" alt="Beach sunset"></div>
+        <div class="hero-slide"><img src="/images/hero-bungalow.svg" alt="Overwater bungalows at dusk"></div>
+        <div class="hero-slide"><img src="/images/hero-cove.svg" alt="Tropical cove"></div>
+        <div class="hero-slide"><img src="/images/hero-falls.svg" alt="Jungle waterfall"></div>
+        <button class="hero-arrow prev" onclick="heroPrev()" aria-label="Previous slide">‹</button>
+        <button class="hero-arrow next" onclick="heroNext()" aria-label="Next slide">›</button>
+        <div class="hero-dots" id="heroDots"></div>
+      </div>
+      <div class="hero-overlay">
+        <h1 class="hero-title">Your next break starts here<span style="color:var(--accent2);">.</span></h1>
+        <p class="hero-sub">Turn your roster into real trips — cached flight fares and bookable things to do, matched to your actual days off.</p>
+        <div class="hero-ctas">
+          <button class="btn" onclick="markLandingSeen();showView('setup')">Search deals</button>
+          <button class="btn secondary" onclick="markLandingSeen();openAuthModal('signup')">Create free account</button>
+        </div>
+      </div>
+    </div>
+    <div class="landing-features">
+      <div class="feature"><h3>Built around your roster</h3><p>Enter your swing — 14/7, 8/6, whatever it is — and we project every upcoming break automatically.</p></div>
+      <div class="feature"><h3>Real cached fares</h3><p>Flight prices come from real recent searches, not made-up numbers — always confirm the final price before booking.</p></div>
+      <div class="feature"><h3>Free to start</h3><p>No credit card needed. Create an account only if you want your setup saved and synced across devices.</p></div>
+    </div>
+  </div>
 
   <!-- SETUP VIEW -->
   <div id="view-setup">
@@ -879,6 +940,61 @@ async function fillSetupForm(){
   renderManualRows();
 }
 
+// ---------- landing hero carousel ----------
+const LANDING_SEEN_KEY = 'nextbreak_seen_landing';
+function markLandingSeen(){
+  localStorage.setItem(LANDING_SEEN_KEY, '1');
+}
+
+const HERO_SLIDE_COUNT = 4;
+let heroIndex = 0;
+let heroTimer = null;
+
+function renderHeroDots(){
+  const dotsEl = document.getElementById('heroDots');
+  if(!dotsEl) return;
+  dotsEl.innerHTML = '';
+  for(let i = 0; i < HERO_SLIDE_COUNT; i++){
+    const b = document.createElement('button');
+    if(i === heroIndex) b.classList.add('active');
+    b.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+    b.onclick = () => goToHeroSlide(i);
+    dotsEl.appendChild(b);
+  }
+}
+function updateHeroSlides(){
+  const slides = document.querySelectorAll('#heroCarousel .hero-slide');
+  slides.forEach((el, i) => el.classList.toggle('active', i === heroIndex));
+  renderHeroDots();
+}
+function goToHeroSlide(i){
+  heroIndex = i;
+  updateHeroSlides();
+  restartHeroTimer();
+}
+function heroNext(){
+  heroIndex = (heroIndex + 1) % HERO_SLIDE_COUNT;
+  updateHeroSlides();
+  restartHeroTimer();
+}
+function heroPrev(){
+  heroIndex = (heroIndex - 1 + HERO_SLIDE_COUNT) % HERO_SLIDE_COUNT;
+  updateHeroSlides();
+  restartHeroTimer();
+}
+function restartHeroTimer(){
+  clearInterval(heroTimer);
+  heroTimer = setInterval(heroNext, 5000);
+}
+function startHeroCarousel(){
+  updateHeroSlides();
+  restartHeroTimer();
+}
+function stopHeroCarousel(){
+  clearInterval(heroTimer);
+  heroTimer = null;
+}
+
 // ---------- view switching ----------
 let currentView = 'dashboard';
 async function showView(view){
@@ -888,6 +1004,7 @@ async function showView(view){
   if(view === 'profile' && !authState.loggedIn) view = 'dashboard';
 
   currentView = view;
+  document.getElementById('view-landing').style.display = view==='landing' ? '' : 'none';
   document.getElementById('view-setup').style.display = view==='setup' ? '' : 'none';
   document.getElementById('view-dashboard').style.display = view==='dashboard' ? '' : 'none';
   document.getElementById('view-profile').style.display = view==='profile' ? '' : 'none';
@@ -895,6 +1012,14 @@ async function showView(view){
   document.getElementById('navDash').classList.toggle('active', view==='dashboard');
   const navProfile = document.getElementById('navProfile');
   if(navProfile) navProfile.classList.toggle('active', view==='profile');
+
+  if(view === 'landing'){
+    startHeroCarousel();
+  }else{
+    stopHeroCarousel();
+    markLandingSeen();
+  }
+
   if(view==='setup') await fillSetupForm();
   if(view==='dashboard') await renderDashboard();
   if(view==='profile') await fillProfileForm();
@@ -1136,9 +1261,21 @@ async function renderActivities(hometown){
     openAuthModal('reset');
   }
 
-  // If they were mid-setup previously we still just default to dashboard;
-  // it gracefully shows an empty state prompting Setup if nothing's saved.
-  await showView('dashboard');
+  // First-time, logged-out visitors with nothing saved yet see the landing
+  // page instead of an empty dashboard. Anyone who's already set up a
+  // roster, is logged in, or has been here before (localStorage flag, set
+  // the moment they navigate anywhere or click a landing CTA) skips
+  // straight to the dashboard — it gracefully shows its own empty state
+  // prompting Setup if nothing's saved.
+  let initialView = 'dashboard';
+  const seenLanding = localStorage.getItem(LANDING_SEEN_KEY) === '1';
+  if(!authState.loggedIn && !seenLanding && !resetToken){
+    try{
+      const settings = await api('/api/settings');
+      if(!settings || !settings.hometown) initialView = 'landing';
+    }catch(e){ /* on any error, fall back to the normal dashboard */ }
+  }
+  await showView(initialView);
 })();
 </script>
 

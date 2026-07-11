@@ -223,7 +223,6 @@
 <header>
   <h1 onclick="showView('landing')" style="cursor:pointer;"><img src="/logo-icon.svg" alt="Next Break" width="32" height="32" style="border-radius:9px;display:block;"> Next Break</h1>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <button class="nav-btn" id="navDash" onclick="showView('dashboard')">My Breaks</button>
     <div class="account-area" id="accountArea"></div>
   </div>
 </header>
@@ -352,7 +351,7 @@
       </div>
 
       <div style="margin-top:20px;">
-        <button class="btn btn-block-mobile" id="saveSetupBtn" onclick="saveSetup()">Save & view my breaks</button>
+        <button class="btn btn-block-mobile" id="saveSetupBtn" onclick="saveSetup()">See deals</button>
       </div>
     </div>
   </div>
@@ -450,9 +449,11 @@ function renderAccountArea(){
   const area = document.getElementById('accountArea');
   if(authState.loggedIn){
     // Logged-in users skip the marketing landing page entirely (see the
-    // showView guard below), so Setup only needs to live here — a plain
-    // nav button — rather than in the always-visible header.
+    // showView guard below), so all nav — My Breaks, Setup, Profile — lives
+    // here rather than in the always-visible header. Logged-out visitors
+    // see only Log in / Create account up top.
     area.innerHTML = `
+      <button class="nav-btn" id="navDash" onclick="showView('dashboard')">My Breaks</button>
       <button class="nav-btn" id="navSetup" onclick="showView('setup')">Setup</button>
       <button class="nav-btn" id="navProfile" onclick="showView('profile')">Profile</button>
       <span class="account-email">${authState.email}</span>
@@ -1013,7 +1014,8 @@ async function showView(view){
   document.getElementById('view-profile').style.display = view==='profile' ? '' : 'none';
   const navSetup = document.getElementById('navSetup');
   if(navSetup) navSetup.classList.toggle('active', view==='setup');
-  document.getElementById('navDash').classList.toggle('active', view==='dashboard');
+  const navDash = document.getElementById('navDash');
+  if(navDash) navDash.classList.toggle('active', view==='dashboard');
   const navProfile = document.getElementById('navProfile');
   if(navProfile) navProfile.classList.toggle('active', view==='profile');
 

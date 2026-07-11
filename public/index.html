@@ -9,33 +9,28 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* "A break from the mining life" — dusk-over-lagoon backdrop with a
-     vivid turquoise (ocean) primary accent and a mango-gold (sunset)
-     secondary accent. Layout cues (bold headings, generous spacing, pill
-     buttons/badges, segmented tabs, card depth) borrowed from
-     kentico.com/platform; the palette here is our own tropical-getaway
-     take, not theirs. */
+  /* Matches the approved "Last Light" mockup exactly: warm cream text on
+     deep navy, a single mango accent (no teal), Bricolage Grotesque
+     throughout. */
   :root{
-    --bg:#0a1a20; --bg-soft:#081319; --panel:#0f2830; --panel2:#153039; --border:#20444c;
-    --text:#eef8f6; --muted:#8fb4b0; --accent:#21d0b8; --accent-hover:#1bb7a1; --accent2:#ffb648;
-    --danger:#ff6b5b; --radius:18px; --radius-pill:999px;
-    --shadow:0 1px 2px rgba(4,14,17,0.3), 0 10px 28px rgba(4,14,17,0.45);
-    --font-head:'Poppins',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    --font-body:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:#101820; --bg-soft:#0b1218; --panel:#161f28; --panel2:#1b2a34; --border:rgba(244,238,227,0.16);
+    --text:#F4EEE3; --muted:rgba(244,238,227,0.6); --accent:#F5B04C; --accent-hover:#f4eee3; --accent2:#F5B04C;
+    --danger:#ff6b5b; --radius:14px; --radius-pill:999px;
+    --shadow:0 1px 2px rgba(4,8,12,0.3), 0 10px 28px rgba(4,8,12,0.45);
+    --font-head:'Bricolage Grotesque',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --font-body:'Bricolage Grotesque',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html{-webkit-text-size-adjust:100%;}
-  body{margin:0;font-family:var(--font-body);color:var(--text);overflow-x:hidden;
-    background:radial-gradient(1200px 560px at 50% -8%, #164048 0%, var(--bg) 55%) var(--bg) fixed;
-  }
+  body{margin:0;font-family:var(--font-body);color:var(--text);overflow-x:hidden;background:var(--bg);}
   h1,h2,h3,.btn,.nav-btn,.mode-toggle button,.auth-toggle button{font-family:var(--font-head);}
   header{position:sticky;top:0;z-index:10;background:rgba(10,26,32,0.85);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
   header h1{font-size:19px;font-weight:800;letter-spacing:-.01em;margin:0;display:flex;align-items:center;gap:8px;}
-  header h1 .tag{background:linear-gradient(120deg, var(--accent), var(--accent2));color:#062024;font-size:11px;padding:3px 10px;border-radius:var(--radius-pill);font-weight:700;letter-spacing:.03em;}
+  header h1 .tag{background:linear-gradient(120deg, var(--accent), var(--accent2));color:#101820;font-size:11px;padding:3px 10px;border-radius:var(--radius-pill);font-weight:700;letter-spacing:.03em;}
   .nav-btn{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:var(--radius-pill);cursor:pointer;font-size:14px;font-weight:600;min-height:40px;}
-  .nav-btn.active{background:var(--accent);color:#062024;border-color:var(--accent);font-weight:700;}
+  .nav-btn.active{background:var(--accent);color:#101820;border-color:var(--accent);font-weight:700;}
   main{max-width:920px;margin:0 auto;padding:20px;}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin-bottom:20px;}
   .panel h2{margin-top:0;font-size:17px;font-weight:700;letter-spacing:-.01em;}
@@ -48,10 +43,10 @@
   input:focus,select:focus{outline:2px solid var(--accent2);outline-offset:1px;}
   .row{display:flex;gap:14px;flex-wrap:wrap;}
   .row > div{flex:1;min-width:150px;}
-  .mode-toggle{display:flex;gap:8px;margin:6px 0 4px;flex-wrap:wrap;background:var(--panel2);padding:6px;border-radius:var(--radius-pill);}
-  .mode-toggle button{flex:1;min-width:140px;padding:10px;border-radius:var(--radius-pill);border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;min-height:40px;}
-  .mode-toggle button.active{background:var(--accent);color:#062024;font-weight:700;}
-  .btn{background:linear-gradient(135deg, var(--accent), var(--accent-hover));color:#062024;border:none;padding:12px 22px;border-radius:var(--radius-pill);font-weight:700;cursor:pointer;font-size:14px;min-height:44px;box-shadow:0 4px 16px rgba(33,208,184,0.3);}
+  .mode-toggle{display:flex;gap:8px;margin:6px 0 4px;flex-wrap:wrap;background:rgba(244,238,227,0.08);padding:6px;border-radius:10px;}
+  .mode-toggle button{flex:1;min-width:140px;padding:10px;border-radius:8px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;min-height:40px;}
+  .mode-toggle button.active{background:var(--text);color:#101820;font-weight:700;}
+  .btn{background:linear-gradient(135deg, var(--accent), var(--accent-hover));color:#101820;border:none;padding:12px 22px;border-radius:var(--radius-pill);font-weight:700;cursor:pointer;font-size:14px;min-height:44px;box-shadow:0 4px 16px rgba(245,176,76,0.3);}
   .btn:hover:not(:disabled){background:linear-gradient(135deg, var(--accent-hover), var(--accent-hover));}
   .btn.secondary{background:none;border:1px solid var(--border);color:var(--text);font-weight:600;box-shadow:none;}
   .btn.small{padding:7px 14px;font-size:12.5px;min-height:36px;}
@@ -64,28 +59,30 @@
   .accordion-item{border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden;background:var(--panel2);}
   .accordion-item.open{border-color:var(--accent);}
   .break-row{padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer;transition:background .15s;}
-  .break-row:hover{background:rgba(63,182,168,0.08);}
-  .accordion-item.open .break-row{background:rgba(63,182,168,0.14);}
+  .break-row:hover{background:rgba(245,176,76,0.08);}
+  .accordion-item.open .break-row{background:rgba(245,176,76,0.14);}
   .break-row .dates{font-weight:700;font-size:15px;}
   .break-row .meta{color:var(--muted);font-size:13px;margin-top:2px;}
   .break-row .right{display:flex;align-items:center;gap:10px;}
   .break-row .chevron{color:var(--muted);font-size:16px;display:inline-block;transition:transform .15s;}
   .accordion-item.open .break-row .chevron{color:var(--accent);transform:rotate(90deg);}
-  .badge{background:var(--accent);color:#06231f;font-size:12px;font-weight:700;padding:4px 12px;border-radius:var(--radius-pill);}
+  .badge{background:var(--accent);color:#101820;font-size:12px;font-weight:700;padding:4px 12px;border-radius:var(--radius-pill);}
   .badge.soon{background:var(--accent2);}
   .accordion-body{padding:0 18px 18px;border-top:1px solid var(--border);}
   .accordion-body .disclaimer{margin:16px 0;}
   .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
   .deal-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;}
-  .deal-card img{width:100%;height:130px;object-fit:cover;display:block;background:var(--border);}
+  .deal-photo{position:relative;height:300px;display:flex;}
+  .deal-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:var(--border);}
+  .deal-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0) 35%, rgba(16,24,32,0.92) 100%);}
+  .deal-photo .region-tag{position:relative;z-index:2;align-self:flex-start;margin:14px 0 0 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);}
+  .deal-photo .region-tag.domestic{background:rgba(244,238,227,0.85);color:#101820;}
+  .deal-photo .region-tag.intl{background:rgba(245,176,76,0.9);color:#101820;}
+  .deal-photo .deal-overlay-text{position:relative;z-index:2;margin-top:auto;padding:20px;width:100%;display:flex;justify-content:space-between;align-items:flex-end;box-sizing:border-box;gap:10px;}
+  .deal-photo .dest{font-weight:700;font-size:22px;color:#fff;}
+  .deal-photo .type{font-size:13px;color:rgba(244,238,227,0.8);margin-top:2px;}
+  .deal-photo .price{font-weight:800;font-size:20px;color:var(--accent2);white-space:nowrap;}
   .deal-card-body{padding:14px;}
-  .deal-card .region-tag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 10px;border-radius:var(--radius-pill);margin-bottom:8px;}
-  .deal-card .region-tag.domestic{background:rgba(63,182,168,0.18);color:var(--accent);}
-  .deal-card .region-tag.intl{background:rgba(232,163,61,0.18);color:var(--accent2);}
-  .deal-card .dest-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
-  .deal-card .dest{font-weight:700;font-size:14.5px;margin-bottom:2px;}
-  .deal-card .type{color:var(--muted);font-size:12px;margin-bottom:10px;}
-  .deal-card .price{font-size:17px;font-weight:800;color:var(--accent2);white-space:nowrap;}
   .deal-card .discount{color:var(--accent2);font-size:12px;font-weight:700;display:block;margin-bottom:8px;}
   .deal-card .blurb{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4;}
   .deal-card a{color:var(--accent);font-size:12.5px;text-decoration:none;font-weight:600;display:block;margin-top:6px;}
@@ -110,11 +107,15 @@
   .top-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
   .top-bar .summary{font-size:13.5px;color:var(--muted);}
   .top-bar .summary b{color:var(--text);}
-  footer{text-align:center;color:var(--muted);font-size:12px;padding:30px 20px;background:var(--bg-soft);border-top:1px solid var(--border);margin-top:20px;}
+  footer{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:24px clamp(20px,5vw,56px);border-top:1px solid var(--border);margin-top:20px;background:var(--bg-soft);}
+  footer .footer-logo{font-weight:700;font-size:16px;color:var(--text);}
+  footer .footer-links{display:flex;gap:20px;font-size:13.5px;}
+  footer .footer-links a{color:var(--muted);text-decoration:none;}
+  footer .footer-links a:hover{color:var(--text);}
   .disclaimer{background:var(--panel2);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
   .banner{padding:12px 16px;border-radius:14px;margin-bottom:18px;font-size:13.5px;display:flex;justify-content:space-between;align-items:center;gap:10px;opacity:1;transform:translateY(0);transition:opacity .22s ease, transform .22s ease;}
   .banner.fade-out{opacity:0;transform:translateY(-6px);}
-  .banner.success{background:rgba(63,182,168,0.15);border:1px solid var(--accent);}
+  .banner.success{background:rgba(245,176,76,0.15);border:1px solid var(--accent);}
   .banner.error{background:rgba(226,96,79,0.15);border:1px solid var(--danger);}
   .banner.info{background:var(--panel2);border:1px solid var(--border);}
   .banner button{background:none;border:none;color:inherit;cursor:pointer;font-size:16px;}
@@ -133,7 +134,7 @@
   .modal h2{margin-top:0;font-size:18px;}
   .auth-toggle{display:flex;gap:4px;margin-bottom:16px;background:var(--panel2);padding:5px;border-radius:var(--radius-pill);}
   .auth-toggle button{flex:1;padding:9px;border-radius:var(--radius-pill);border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:13.5px;min-height:38px;}
-  .auth-toggle button.active{background:var(--accent);color:#06231f;font-weight:700;}
+  .auth-toggle button.active{background:var(--accent);color:#101820;font-weight:700;}
   .auth-error{color:var(--danger);font-size:12.5px;margin-top:10px;line-height:1.4;min-height:1px;}
   .auth-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--muted);font-size:12px;}
   .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
@@ -141,7 +142,7 @@
   .modal .btn{width:100%;margin-top:16px;}
 
   /* ---------- account promo (dashboard, anonymous users only) ---------- */
-  .account-promo{background:linear-gradient(135deg, rgba(63,182,168,0.14), rgba(232,163,61,0.08));border:1px solid var(--accent);border-radius:var(--radius);padding:18px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;position:relative;}
+  .account-promo{background:linear-gradient(135deg, rgba(245,176,76,0.14), rgba(245,176,76,0.06));border:1px solid var(--accent);border-radius:var(--radius);padding:18px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;position:relative;}
   .account-promo .content{flex:1;min-width:220px;}
   .account-promo h3{margin:0 0 6px;font-size:15px;font-family:var(--font-head);font-weight:700;}
   .account-promo ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.6;}
@@ -161,72 +162,69 @@
   /* ---------- landing page (first-time / anonymous visitors) ----------
      The hero is full-bleed (sits outside <main>'s max-width container,
      directly under <header>) and the header itself goes transparent and
-     floats on top of it (see header.landing-mode below) — this is what
-     makes it read as one seamless photo moment instead of a photo-in-a-box
-     with its own separate nav bar above it. */
-  .hero{position:relative;overflow:hidden;height:560px;background:var(--bg-soft);}
+     floats on top of it (see header.landing-mode below). Sizing/copy here
+     is matched exactly to the approved mockup. */
+  .hero{position:relative;overflow:hidden;height:min(88vh,760px);background:var(--bg-soft);}
   .hero-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
-  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(4,10,14,0.6) 0%, rgba(4,10,14,0.12) 32%, rgba(4,10,14,0.18) 58%, rgba(4,10,14,0.8) 100%);pointer-events:none;}
-  .hero-overlay{position:absolute;left:0;right:0;top:54%;transform:translateY(-50%);padding:0 48px;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;}
-  .hero-text{max-width:560px;}
-  .hero-title{margin:0 0 14px;font-size:44px;line-height:1.15;font-weight:800;color:#fff;letter-spacing:-0.02em;font-family:var(--font-head);}
-  .hero-sub{margin:0;color:rgba(255,255,255,0.85);font-size:15.5px;max-width:460px;line-height:1.55;}
-  .hero-cta-block{flex-shrink:0;text-align:right;}
-  .hero-microcopy{margin-top:10px;font-size:12.5px;color:rgba(255,255,255,0.75);}
-  .btn.cta-mango{background:linear-gradient(135deg, var(--accent2), #ffcf80);color:#3a2100;box-shadow:0 4px 16px rgba(255,182,72,0.35);}
-  .btn.cta-mango:hover:not(:disabled){background:linear-gradient(135deg, #ffcf80, #ffcf80);}
-  .landing-features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0 20px;}
-  .landing-features .feature{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
-  .landing-features .feature h3{margin:0 0 8px;font-size:14.5px;font-family:var(--font-head);}
-  .landing-features .feature p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.55;}
+  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0.6) 0%, rgba(16,24,32,0.15) 40%, rgba(16,24,32,0.94) 100%);pointer-events:none;}
+  .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:0 clamp(20px,5vw,56px) clamp(28px,5vw,52px);z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:32px;flex-wrap:wrap;}
+  .hero-text{min-width:min(100%,320px);}
+  .hero-title{margin:0 0 14px;font-size:clamp(36px,5.5vw,64px);line-height:1;font-weight:800;color:var(--text);letter-spacing:-0.025em;font-family:var(--font-head);max-width:580px;}
+  .hero-sub{margin:0;color:rgba(244,238,227,0.8);font-size:clamp(15px,1.6vw,17px);max-width:440px;line-height:1.55;}
+  .hero-cta-block{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-start;gap:8px;}
+  .hero-microcopy{font-size:13px;color:rgba(244,238,227,0.6);}
+  .btn.cta-mango{background:var(--accent2);color:#101820;font-size:16px;padding:15px 30px;box-shadow:none;}
+  .btn.cta-mango:hover:not(:disabled){background:var(--text);}
+  .landing-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:clamp(20px,3vw,40px);padding:clamp(36px,6vw,64px) clamp(20px,5vw,56px);border-bottom:1px solid var(--border);margin:0 calc(-1 * clamp(20px,5vw,56px)) 0;}
+  .landing-features .feature{display:flex;flex-direction:column;gap:10px;}
+  .landing-features .feature .step-num{font-weight:800;font-size:15px;color:var(--accent2);}
+  .landing-features .feature h3{margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em;font-family:var(--font-head);}
+  .landing-features .feature p{margin:0;color:rgba(244,238,227,0.7);font-size:15px;line-height:1.55;}
   @media (max-width: 640px){
-    .hero{height:480px;}
-    .hero-overlay{padding:20px;top:auto;bottom:0;transform:none;flex-direction:column;align-items:flex-start;}
-    .hero-title{font-size:26px;}
-    .hero-sub{font-size:13.5px;}
-    .hero-cta-block{text-align:left;width:100%;}
-    .hero-cta-block .btn{width:100%;}
-    .landing-features{grid-template-columns:1fr;}
+    .hero{height:min(92vh,620px);}
+    .hero-overlay{flex-direction:column;align-items:flex-start;}
+    .hero-cta-block .btn{width:100%;text-align:center;}
+    .landing-features{grid-template-columns:1fr;margin:0 -20px;}
   }
 
   /* ---------- header: transparent overlay mode on the landing hero ---------- */
   header.landing-mode{position:absolute;background:transparent;backdrop-filter:none;border-bottom:none;top:0;left:0;right:0;z-index:20;}
-  /* The ghost/link buttons are tuned for sitting on the dark solid bar by
-     default (var(--border)/var(--text)) — over a bright photo those are too
-     low-contrast, so brighten them specifically in landing-mode. */
-  header.landing-mode .btn.ghost{border-color:rgba(255,255,255,0.75);color:#fff;}
-  header.landing-mode .btn.ghost:hover:not(:disabled){background:rgba(255,255,255,0.12);}
-  header.landing-mode .btn-link{color:#fff;}
-  header.landing-mode .btn-link:hover{color:var(--accent2);}
 
   /* ---------- header ghost/link buttons (logged-out state) ---------- */
-  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none;}
-  .btn.ghost:hover:not(:disabled){background:var(--panel2);}
-  .btn-link{background:none;border:none;color:var(--text);font-weight:600;font-size:14px;cursor:pointer;padding:8px 10px;font-family:var(--font-body);}
-  .btn-link:hover{color:var(--accent2);}
+  .btn.ghost{background:transparent;border:1px solid rgba(244,238,227,0.5);color:var(--text);box-shadow:none;padding:9px 20px;font-size:14.5px;min-height:0;}
+  .btn.ghost:hover:not(:disabled){background:rgba(244,238,227,0.12);}
+  .btn-link{background:none;border:none;color:var(--text);opacity:.85;font-weight:600;font-size:14.5px;cursor:pointer;padding:8px 10px;font-family:var(--font-body);}
+  .btn-link:hover{opacity:1;}
 
   /* ---------- setup: single-row "Your swing" panel ---------- */
   .setup-header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
   .setup-header-row h2{margin:0;}
   .setup-mode-toggle{margin:0;width:auto;}
   .setup-mode-toggle button{min-width:120px;}
-  .swing-row{display:flex;gap:14px;align-items:end;flex-wrap:wrap;}
-  .swing-field{flex:1;min-width:120px;}
+  .swing-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;align-items:end;}
+  .swing-field{min-width:0;}
   .swing-field label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:500;}
-  .swing-submit{flex:0 0 auto;white-space:nowrap;}
+  .swing-field input{background:rgba(244,238,227,0.07);border:1px solid rgba(244,238,227,0.2);border-radius:10px;}
+  .swing-submit{white-space:nowrap;border-radius:10px;}
   @media (max-width: 640px){
     .setup-header-row{flex-direction:column;align-items:stretch;}
     .setup-mode-toggle{flex-direction:column;}
-    .swing-row{flex-direction:column;align-items:stretch;}
+    .swing-row{grid-template-columns:1fr;}
     .swing-submit{width:100%;}
   }
 
   /* ---------- break selector + photo deal cards ---------- */
   .break-select-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:4px;}
   .break-select-row h2{margin:0;}
-  .break-quicklinks{color:var(--muted);font-size:13px;}
-  .break-quicklinks a{color:var(--muted);text-decoration:none;font-weight:600;}
-  .break-quicklinks a:hover{color:var(--accent2);text-decoration:underline;}
+  .break-projected{color:var(--muted);font-size:13px;}
+  .break-chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px;}
+  .break-chip{border-radius:var(--radius-pill);padding:8px 16px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);}
+  .break-chip.selected{background:var(--text);color:#101820;border:1px solid var(--text);}
+  .break-chip:not(.selected){background:transparent;color:var(--muted);border:1px solid rgba(244,238,227,0.3);}
+  .break-chip:not(.selected):hover{color:var(--text);border-color:rgba(244,238,227,0.5);}
+  @media (max-width: 640px){
+    .break-select-row{flex-direction:column;align-items:flex-start;}
+  }
 
   /* ---------- mobile ---------- */
   @media (max-width: 640px){
@@ -332,9 +330,9 @@
        after it. -->
   <div id="view-landing" style="display:none;">
     <div class="landing-features">
-      <div class="feature"><h3>Built around your roster</h3><p>Enter your swing — 14/7, 8/6, whatever it is — and we project every upcoming break automatically.</p></div>
-      <div class="feature"><h3>Real flight prices</h3><p>Flight prices come from real recent searches, not made-up numbers — always confirm the final price before booking.</p></div>
-      <div class="feature"><h3>Free to start</h3><p>No credit card needed. Create an account only if you want your setup saved and synced across devices.</p></div>
+      <div class="feature"><span class="step-num">01</span><h3>Punch in your swing</h3><p>14/7, 8/6, whatever you're on. We project every break you've got coming — automatically.</p></div>
+      <div class="feature"><span class="step-num">02</span><h3>We match the deals</h3><p>Flights, escapes and things worth doing out of your home airport — sized to fit each break exactly.</p></div>
+      <div class="feature"><span class="step-num">03</span><h3>Book what's worth it</h3><p>Prices come from real recent searches, not made-up numbers. Confirm the final fare before you book.</p></div>
     </div>
   </div>
 
@@ -402,8 +400,9 @@
     <div class="panel">
       <div class="break-select-row">
         <h2 id="breakHeading">Upcoming breaks</h2>
-        <div class="break-quicklinks" id="breakQuicklinks"></div>
+        <div class="break-projected" id="breakProjected"></div>
       </div>
+      <div class="break-chips" id="breakChips"></div>
       <div id="breaksList"></div>
     </div>
 
@@ -441,7 +440,14 @@
 
 </main>
 
-<footer>Sign in to save your setup to an account and access it from any device. Deal prices are from recent searches, not a live quote — always confirm the final price before booking.</footer>
+<footer>
+  <span class="footer-logo">next break<span style="color:var(--accent2);">.</span></span>
+  <div class="footer-links">
+    <a href="/terms.html">Privacy</a>
+    <a href="/terms.html">Terms</a>
+    <a href="mailto:mark.volley@gmail.com">Contact</a>
+  </div>
+</footer>
 
 <script>
 // ---------- user identity (no login — device-scoped id) ----------
@@ -1034,6 +1040,8 @@ function scrollToSetup(){
 let currentBreaks = [];
 let openBreakKey = null;
 let realPricesAvailable = false;
+let currentRosterMode = 'pattern';
+let currentPattern = null;
 const dealsCache = {};   // breakKey -> {source, currencySymbol, deals}
 const dealsLoading = {}; // breakKey -> true while a fetch is in flight
 
@@ -1085,13 +1093,16 @@ async function renderDashboard(){
   }
   currentBreaks = data.breaks;
   realPricesAvailable = !!data.realPricesAvailable;
+  currentRosterMode = data.rosterMode || 'pattern';
+  currentPattern = data.pattern || null;
 
   document.getElementById('sumHometown').textContent = data.hometown || '—';
   document.getElementById('sumRoster').textContent = currentBreaks.length + ' upcoming break(s)';
 
   if(currentBreaks.length === 0){
     document.getElementById('breakHeading').textContent = 'Upcoming breaks';
-    document.getElementById('breakQuicklinks').innerHTML = '';
+    document.getElementById('breakProjected').textContent = '';
+    document.getElementById('breakChips').innerHTML = '';
     document.getElementById('breaksList').innerHTML = '<div class="empty">No upcoming breaks yet — head to Setup to add your roster.</div>';
     renderActivities(data.hometown);
     return;
@@ -1139,25 +1150,27 @@ function fmtDateRange(brk){
 function renderBreaksList(){
   const container = document.getElementById('breaksList');
   const heading = document.getElementById('breakHeading');
-  const quicklinks = document.getElementById('breakQuicklinks');
+  const projected = document.getElementById('breakProjected');
+  const chips = document.getElementById('breakChips');
 
   const selected = currentBreaks.find(b => b.key === openBreakKey) || currentBreaks[0];
   if(!selected){
     heading.textContent = 'Upcoming breaks';
-    quicklinks.innerHTML = '';
+    projected.textContent = '';
+    chips.innerHTML = '';
     container.innerHTML = '';
     return;
   }
 
   heading.textContent = `Break of ${fmtDateRange(selected)}`;
 
-  const others = currentBreaks.filter(b => b.key !== selected.key).slice(0, 2);
-  quicklinks.textContent = '';
-  if(others.length){
-    quicklinks.innerHTML = 'Then ' + others.map(b =>
-      `<a href="#" onclick="selectBreak('${b.key}');return false;">${fmtDateRange(b)}</a>`
-    ).join(' · ');
-  }
+  projected.textContent = (currentRosterMode === 'pattern' && currentPattern && currentPattern.daysOn && currentPattern.daysOff)
+    ? `Projected from ${currentPattern.daysOn} on / ${currentPattern.daysOff} off`
+    : '';
+
+  chips.innerHTML = currentBreaks.slice(0, 6).map(b =>
+    `<button type="button" class="break-chip${b.key === selected.key ? ' selected' : ''}" onclick="selectBreak('${b.key}')">${fmtDateRange(b)}</button>`
+  ).join('');
 
   const cached = dealsCache[selected.key];
   if(!cached){
@@ -1204,18 +1217,21 @@ function dealsMarkup(result){
 
   const dealsHtml = result.deals.map(d => {
     const photo = destPhotoUrl(d.iata);
+    const stops = d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s');
     return `
     <div class="deal-card">
-      ${photo ? `<img src="${photo}" alt="" loading="lazy">` : ''}
-      <div class="deal-card-body">
+      <div class="deal-photo">
+        ${photo ? `<img src="${photo}" alt="" loading="lazy">` : ''}
         <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
-        <div class="dest-row">
+        <div class="deal-overlay-text">
           <div>
             <div class="dest">${d.name}</div>
-            <div class="type">${d.airline} ${d.flightNumber} · ${d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s')}</div>
+            <div class="type">${d.airline} ${d.flightNumber} · ${stops}</div>
           </div>
           <div class="price">${sym}${Math.round(d.price)}</div>
         </div>
+      </div>
+      <div class="deal-card-body">
         <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
         <div class="blurb">${d.blurb}</div>
         <a href="${d.bookUrl}" target="_blank" rel="noopener sponsored">✈️ Book this fare →</a>
@@ -1225,7 +1241,7 @@ function dealsMarkup(result){
   }).join('');
 
   return `
-    <div class="disclaimer">💰 Real fares from Aviasales, found within the last week — dates shown are the actual flight found near your break, not guaranteed to match it exactly. "Book this fare" is a real, trackable booking link.</div>
+    <div class="disclaimer">Prices are from recent searches, not live quotes — confirm the final price before booking.</div>
     <div class="deals-grid">${dealsHtml}</div>
   `;
 }

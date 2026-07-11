@@ -495,7 +495,9 @@ async function handleGetBreaks(req, res, userId) {
   sendJson(res, 200, {
     breaks: result,
     hometown: settings.hometown || '',
-    realPricesAvailable: !!(TRAVELPAYOUTS_TOKEN && settings.originAirport)
+    realPricesAvailable: !!(TRAVELPAYOUTS_TOKEN && settings.originAirport),
+    rosterMode: settings.rosterMode || 'pattern',
+    pattern: settings.pattern || null
   });
 }
 

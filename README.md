@@ -108,6 +108,77 @@ tied to a random per-browser device ID) if nobody signs up.
 5. Leave it blank to hide the Google button entirely and offer
    email/password login only.
 
+### Forgot password
+
+Signing up requires accepting the [Terms and Conditions](public/terms.html)
+(see below), and once someone has an account, they can reset a forgotten
+password via **Forgot password?** on the login form. That flow:
+
+1. Generates a random, single-use token good for 1 hour, stored in
+   `data.json` (not the password itself — the token just proves "this
+   person controls that inbox").
+2. Emails a reset link (`https://yoursite/?resetToken=...`) via
+   [Resend](https://resend.com)'s HTTP API, if `RESEND_API_KEY` is set.
+3. If Resend isn't configured (or a send fails), the link is logged to the
+   server console instead — handy for local dev, not a substitute for real
+   email in production.
+4. Resetting the password invalidates every existing session for that
+   account, so a leaked/stolen session cookie elsewhere gets kicked out the
+   moment someone resets.
+
+The response to **Forgot password?** is deliberately the same generic
+message whether or not an account exists for that email, so this endpoint
+can't be used to check which emails have accounts here.
+
+To turn on real emails: sign up free at [resend.com](https://resend.com)
+(no credit card needed), grab an API key from
+[resend.com/api-keys](https://resend.com/api-keys), and set
+`RESEND_API_KEY` in `.env`. `EMAIL_FROM` defaults to Resend's shared test
+sender (`onboarding@resend.dev`), which works without any setup but is for
+testing only — verify your own domain at
+[resend.com/domains](https://resend.com/domains) before sending real users
+real reset emails from it.
+
+## Terms and Conditions
+
+`public/terms.html` is a general-purpose Terms and Conditions template —
+covering the affiliate-commission model, the "cached fares, not live
+quotes" disclaimer, account rules, data handling, and a liability/consumer-law
+section. **It's a starting point, not legal advice** — have it reviewed
+before relying on it commercially, especially if you're serving users
+outside Australia.
+
+Accepting it is mandatory, not just a link in the footer: the checkbox on
+the signup form must be checked before `POST /api/auth/signup` will create
+an account, and the same applies to a brand-new account created via Google
+Sign-In (an existing account signing back in via Google is never asked to
+re-accept). The server enforces this — the frontend checkbox is a
+convenience, not the actual gate — and each account records *when* and
+*which version* of the Terms it accepted (`termsAcceptedAt`,
+`termsVersion` in `data.json`), so bumping the terms later and requiring
+re-acceptance from existing users is possible without extra plumbing.
+
+## Profile — display name and avatar
+
+Logged-in users get a **Profile** page (linked from the header) to set a
+display name and upload an avatar. A couple of implementation notes:
+
+- Avatars are uploaded as a base64 data URL in a normal JSON body, not a
+  multipart form — Node's built-in `http` module doesn't parse multipart
+  bodies, and adding a library for it would break the zero-dependency rule
+  for what's otherwise a small image (PNG/JPEG/WebP, max 2MB, enforced
+  both client- and server-side).
+- Uploaded images are written to an `avatars/` folder next to `data.json`
+  — i.e. on the same persistent disk in production (`/data` on Render), not
+  under `public/`, since `public/` is just the git-tracked static frontend
+  and wouldn't survive a redeploy. They're served back via a small
+  dedicated `/avatars/<file>` route.
+- Replacing an avatar deletes the previous file, so they don't pile up on
+  disk over time.
+- Profile routes require an actual logged-in session — unlike the rest of
+  the app, there's no meaningful "anonymous profile," so an anonymous
+  device ID doesn't grant access here.
+
 ## Why no `npm install`?
 
 The whole backend is built on Node's built-ins only (`http`, `fetch`,
@@ -155,6 +226,8 @@ illustrative mock deals instead of real ones.
 | `VIATOR_PID` | For commission tracking | — | Your Viator Partner ID — attached to every activity booking link. |
 | `VIATOR_MCID` | For commission tracking | — | Your Viator campaign ID — also attached to booking links. |
 | `GOOGLE_CLIENT_ID` | For Google Sign-In | — | Not secret — from Google Cloud Console (see **Accounts** above). Leave blank to hide the Google button; email/password login always works regardless. |
+| `RESEND_API_KEY` | For real password-reset emails | — | From [resend.com/api-keys](https://resend.com/api-keys). Without it, reset links are just logged to the server console. |
+| `EMAIL_FROM` | No | `Next Break <onboarding@resend.dev>` | Sender address on reset emails — must be a domain verified in your Resend account for real (non-test) sending. |
 | `PORT` | No | `3000` | |
 | `DATA_FILE` | No | `./data.json` | Where user settings are stored |
 | `STRIPE_SECRET_KEY` | No | — | Unused (paywall is off — see below). Only needed if you re-enable it. |
@@ -177,10 +250,15 @@ server.js                 HTTP server + API routes
 lib/deals.js               Break date/scheduling logic (pure functions)
 lib/travelpayouts.js        Real flight price lookups + affiliate booking links
 lib/viator.js                 Real activity listings + affiliate booking links
-lib/store.js                   JSON-file persistence (user settings)
-lib/stripeClient.js             Raw Stripe REST calls (dormant, unused — see above)
-lib/links.js                     Search-link helpers (generic-suggestion fallback links)
-public/index.html                 Frontend (vanilla JS, no build step)
+lib/store.js                   JSON-file persistence (user settings, accounts, sessions)
+lib/auth.js                     Password hashing + token generation (built-in crypto only)
+lib/googleAuth.js                Google ID token verification (tokeninfo endpoint)
+lib/email.js                      Password-reset email sending (Resend REST API)
+lib/stripeClient.js                Raw Stripe REST calls (dormant, unused — see above)
+lib/links.js                        Search-link helpers (generic-suggestion fallback links)
+public/index.html                     Frontend (vanilla JS, no build step)
+public/terms.html                      Terms and Conditions page
+data/avatars/                           Uploaded profile pictures (created at runtime, next to data.json)
 ```
 
 ## API endpoints
@@ -205,6 +283,16 @@ public/index.html                 Frontend (vanilla JS, no build step)
 - `GET /api/auth/me` — current login state (`{loggedIn, email, googleClientId}`);
   `googleClientId` is `null` if Google Sign-In isn't configured, which is
   what the frontend uses to decide whether to show the Google button.
+- `POST /api/auth/forgot-password` — `{email}`, always returns the same
+  generic message; emails a reset link if the account exists.
+- `POST /api/auth/reset-password` — `{token, password}`, sets a new
+  password and invalidates all existing sessions for that account.
+- `GET /api/profile` — `{email, displayName, avatarUrl}` for the logged-in
+  account. Requires a real session (401 otherwise, even with a valid
+  anonymous `X-User-Id`).
+- `PUT /api/profile` — `{displayName?, avatarDataUrl?}`, updates only the
+  fields provided. `avatarDataUrl` is a `data:image/...;base64,...` string;
+  see **Profile** above for size/format limits.
 
 ## Deploying
 
@@ -243,12 +331,11 @@ host's dashboard/CLI, same handling as everything else sensitive so far.
 
 ## Known limitations
 
-- **Login is optional, and there's no password reset yet.** Signing up
-  saves your setup to an account (email/password or Google) that follows
-  you across devices — but if you forget your password, there's currently
-  no "forgot password" email flow to recover it. Anyone not signed in still
-  falls back to the original per-browser device ID (a step below fine for
-  testing, but not a real durable identity).
+- **Login is optional.** Signing up saves your setup to an account
+  (email/password or Google) that follows you across devices, with a
+  working password-reset flow. Anyone not signed in still falls back to
+  the original per-browser device ID (fine for testing, but not a real
+  durable identity).
 - **`data.json` is not a real database.** It's a single file rewritten on
   every change — it'll get slow and is not safe for concurrent writes at
   any real scale. Swap in Postgres/SQLite-with-a-real-driver before you
@@ -265,8 +352,7 @@ host's dashboard/CLI, same handling as everything else sensitive so far.
 
 - Deploy: this needs a host that runs a persistent Node process (Render,
   Railway, Fly.io, a VPS) — not a pure static host.
-- Add a "forgot password" email flow (needs a transactional email
-  provider — Resend, Postmark, SES, etc.).
+- Have a lawyer review `public/terms.html` before relying on it commercially.
 - Add a real database once `data.json` starts to strain.
 - Expand `REAL_DESTINATIONS` in `lib/travelpayouts.js` with more curated
   destinations to increase the odds of a cache hit per break.

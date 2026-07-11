@@ -37,11 +37,16 @@ let r = await req('/api/settings', { method: 'PUT', headers: { 'X-User-Id': devi
 assert.strictEqual(r.status, 200, 'settings save should 200: ' + JSON.stringify(r.json));
 
 // 2. Signup with that device id -> should migrate settings
-r = await req('/api/auth/signup', { method: 'POST', headers: { 'X-User-Id': deviceId }, body: { email: 'Test@Example.com', password: 'hunter22' } });
+r = await req('/api/auth/signup', { method: 'POST', headers: { 'X-User-Id': deviceId }, body: { email: 'Test@Example.com', password: 'hunter22', acceptedTerms: true } });
 assert.strictEqual(r.status, 200, 'signup should 200: ' + JSON.stringify(r.json));
 assert.strictEqual(r.json.email, 'test@example.com');
 const sessionCookie = r.cookie;
 assert.ok(sessionCookie, 'should set session cookie');
+
+// 2b. Signup without acceptedTerms should be rejected regardless of otherwise-valid input
+r = await req('/api/auth/signup', { method: 'POST', body: { email: 'noterm@example.com', password: 'hunter22' } });
+assert.strictEqual(r.status, 400, JSON.stringify(r.json));
+assert.ok(r.json.error.includes('Terms'));
 
 // 3. /api/auth/me with cookie shows logged in
 r = await req('/api/auth/me', { headers: { Cookie: sessionCookie } });
@@ -55,7 +60,7 @@ assert.strictEqual(r.json.originAirport, 'PER');
 
 // 5. Duplicate signup should 409 — no identity headers needed at all, since
 // auth routes don't require an existing X-User-Id/session.
-r = await req('/api/auth/signup', { method: 'POST', body: { email: 'test@example.com', password: 'whatever1' } });
+r = await req('/api/auth/signup', { method: 'POST', body: { email: 'test@example.com', password: 'whatever1', acceptedTerms: true } });
 assert.strictEqual(r.status, 409, JSON.stringify(r.json));
 
 // 6. Login with wrong password -> 401

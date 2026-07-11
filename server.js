@@ -7,18 +7,22 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { computeUpcomingBreaks, breakStatus, toISO, CURRENCY_SYMBOLS } from './lib/deals.js';
 import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
-  getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser
+  getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
+  setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
+  setAccountProfile, _dataFilePath
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { findRealDeals } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
-import { hashPassword, verifyPassword, createSessionToken, isValidEmail } from './lib/auth.js';
+import { hashPassword, verifyPassword, createSessionToken, createResetToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
+import { sendPasswordResetEmail } from './lib/email.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -50,7 +54,23 @@ const VIATOR_MCID = process.env.VIATOR_MCID || '';
 // https://console.cloud.google.com/apis/credentials
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 
+// Transactional email (password resets only, for now) via Resend's REST
+// API — see lib/email.js. RESEND_API_KEY is secret; EMAIL_FROM is not, but
+// it does need to be a sender address/domain verified in your Resend
+// account or Resend will reject the send.
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Next Break <onboarding@resend.dev>';
+
 const SESSION_COOKIE = 'nb_session';
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Avatars live next to data.json on the same persistent disk (whatever
+// directory DATA_FILE points at — /data on Render, project root locally),
+// not in public/, since public/ is just the git-tracked static frontend
+// and wouldn't survive a redeploy.
+const AVATAR_DIR = path.join(path.dirname(_dataFilePath()), 'avatars');
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB decoded
+const AVATAR_MIME_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 
 // ---------- tiny helpers ----------
 function sendJson(res, status, obj) {
@@ -77,8 +97,8 @@ function readRawBody(req, limitBytes = 1_000_000) {
   });
 }
 
-async function readJsonBody(req) {
-  const raw = await readRawBody(req);
+async function readJsonBody(req, limitBytes) {
+  const raw = await readRawBody(req, limitBytes);
   if (!raw) return {};
   try {
     return JSON.parse(raw);
@@ -137,7 +157,7 @@ function originFromRequest(req) {
   return `${proto}://${host}`;
 }
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
 
 function serveStatic(req, res, pathname) {
   const rel = pathname === '/' ? 'index.html' : pathname.slice(1);
@@ -155,6 +175,28 @@ function serveStatic(req, res, pathname) {
     }
     const ext = path.extname(filePath);
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.end(data);
+  });
+}
+
+// Avatars live outside PUBLIC_DIR (see AVATAR_DIR above), so they get their
+// own tiny static handler rather than being folded into serveStatic.
+function serveAvatar(req, res, pathname) {
+  const rel = pathname.replace(/^\/avatars\//, '');
+  const filePath = path.normalize(path.join(AVATAR_DIR, rel));
+  if (!filePath.startsWith(AVATAR_DIR)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+      return;
+    }
+    const ext = path.extname(filePath);
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000, immutable' });
     res.end(data);
   });
 }
@@ -221,6 +263,12 @@ async function buildActivitiesForSettings(settings) {
 }
 
 // ---------- auth ----------
+// Bumping this forces nothing retroactively (existing accounts keep their
+// original acceptance on file), but it's recorded per-account so you have a
+// paper trail of who agreed to which version, and could require
+// re-acceptance on a version bump later if you ever need to.
+const TERMS_VERSION = '2026-07-11';
+
 // `deviceId` here is whatever anonymous X-User-Id this browser already had
 // before logging in/signing up — if it has saved settings, they're carried
 // over into the account rather than forcing the person to redo Setup.
@@ -231,9 +279,10 @@ async function handleSignup(req, res, deviceId) {
 
   if (!isValidEmail(email)) return sendJson(res, 400, { error: 'Enter a valid email address.' });
   if (password.length < 8) return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+  if (body.acceptedTerms !== true) return sendJson(res, 400, { error: 'You must accept the Terms and Conditions to create an account.' });
   if (getAccount(email)) return sendJson(res, 409, { error: 'An account with that email already exists — try logging in instead.' });
 
-  createAccount(email, { passwordHash: hashPassword(password) });
+  createAccount(email, { passwordHash: hashPassword(password), termsAcceptedAt: new Date().toISOString(), termsVersion: TERMS_VERSION });
   if (deviceId) migrateUser(deviceId, email);
 
   const token = createSessionToken();
@@ -269,7 +318,16 @@ async function handleGoogleAuth(req, res, deviceId) {
   const claims = await verifyGoogleIdToken({ idToken, clientId: GOOGLE_CLIENT_ID });
   if (!claims) return sendJson(res, 401, { error: 'Could not verify Google sign-in. Please try again.' });
 
-  upsertGoogleAccount(claims.email, claims.sub);
+  // Terms acceptance is only required when this Google sign-in is actually
+  // creating a brand-new account — an existing user (password or Google)
+  // signing back in already accepted at their original signup and
+  // shouldn't be blocked on re-accepting just to log in.
+  const isNewAccount = !getAccount(claims.email);
+  if (isNewAccount && body.acceptedTerms !== true) {
+    return sendJson(res, 400, { error: 'You must accept the Terms and Conditions to create an account.' });
+  }
+
+  upsertGoogleAccount(claims.email, claims.sub, isNewAccount ? { termsAcceptedAt: new Date().toISOString(), termsVersion: TERMS_VERSION } : {});
   if (deviceId) migrateUser(deviceId, claims.email);
 
   const token = createSessionToken();
@@ -289,6 +347,130 @@ async function handleMe(req, res) {
   const cookies = parseCookies(req);
   const email = getSessionEmail(cookies[SESSION_COOKIE]);
   sendJson(res, 200, { loggedIn: !!email, email: email || null, googleClientId: GOOGLE_CLIENT_ID || null });
+}
+
+// Always responds with the same generic message regardless of whether the
+// account exists — otherwise this endpoint could be used to check which
+// emails have an account here (email enumeration).
+async function handleForgotPassword(req, res) {
+  const body = await readJsonBody(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  const genericMessage = { message: "If an account exists for that email, we've sent a password reset link." };
+
+  if (!isValidEmail(email)) return sendJson(res, 200, genericMessage);
+
+  const account = getAccount(email);
+  if (account) {
+    const token = createResetToken();
+    createPasswordReset(token, email, PASSWORD_RESET_TTL_MS);
+    const resetUrl = `${originFromRequest(req)}/?resetToken=${token}`;
+
+    const sent = RESEND_API_KEY
+      ? await sendPasswordResetEmail({ to: email, resetUrl, apiKey: RESEND_API_KEY, fromAddress: EMAIL_FROM })
+      : false;
+
+    if (!sent) {
+      // No email provider configured (or the send failed) — log the link
+      // so local/dev testing still works without needing a real inbox.
+      // This is a deliberate fallback, not silent failure: the server logs
+      // make it obvious a real email was never actually sent.
+      console.log(`[auth] Password reset link for ${email} (RESEND_API_KEY ${RESEND_API_KEY ? 'set but send failed' : 'not set'}): ${resetUrl}`);
+    }
+  }
+
+  sendJson(res, 200, genericMessage);
+}
+
+async function handleResetPassword(req, res) {
+  const body = await readJsonBody(req);
+  const token = String(body.token || '');
+  const password = String(body.password || '');
+
+  if (password.length < 8) return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+
+  const email = getPasswordResetEmail(token);
+  if (!email) return sendJson(res, 400, { error: 'This reset link is invalid or has expired — request a new one.' });
+
+  setAccountPassword(email, hashPassword(password));
+  deletePasswordReset(token);
+  deleteAllSessionsForEmail(email); // force re-login everywhere, including whoever is mid-reset right now
+
+  sendJson(res, 200, { success: true });
+}
+
+// ---------- profile (display name + avatar — real accounts only) ----------
+// Unlike the rest of the app, profile data belongs to an *account*, not a
+// device — there's no meaningful "anonymous profile," so this checks for an
+// actual session rather than falling back to X-User-Id like getUserId does.
+function requireSessionEmail(req, res) {
+  const cookies = parseCookies(req);
+  const email = getSessionEmail(cookies[SESSION_COOKIE]);
+  if (!email) {
+    sendJson(res, 401, { error: 'You need to be logged in to do that.' });
+    return null;
+  }
+  return email;
+}
+
+async function handleGetProfile(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  const account = getAccount(email);
+  sendJson(res, 200, { email, displayName: account?.displayName || '', avatarUrl: account?.avatarUrl || null });
+}
+
+async function handlePutProfile(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+
+  // Avatar images arrive as a base64 data URL rather than multipart form
+  // data — Node's http module doesn't parse multipart bodies itself, and
+  // pulling in a library for it would break the zero-dependency rule for
+  // what's otherwise a small image. A data URL keeps this a plain JSON
+  // body like every other endpoint here.
+  //
+  // The raw-body limit here is intentionally well above MAX_AVATAR_BYTES:
+  // base64 inflates size by ~4/3, and a too-tight transport-level limit
+  // would hard-reset the connection (readRawBody's req.destroy()) before a
+  // friendly "image too large" JSON response could be sent for a
+  // moderately-oversized upload. The real size enforcement is the
+  // MAX_AVATAR_BYTES check below, on the *decoded* bytes.
+  const body = await readJsonBody(req, 10_000_000);
+  const patch = {};
+
+  if (typeof body.displayName === 'string') {
+    const name = body.displayName.trim().slice(0, 60);
+    patch.displayName = name;
+  }
+
+  if (typeof body.avatarDataUrl === 'string' && body.avatarDataUrl.length) {
+    const match = body.avatarDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/);
+    if (!match) return sendJson(res, 400, { error: 'Unsupported image format — please use PNG, JPEG, or WebP.' });
+
+    const mime = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
+    const ext = AVATAR_MIME_EXT[mime];
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.length > MAX_AVATAR_BYTES) {
+      return sendJson(res, 400, { error: 'Image too large — please use an image under 2MB.' });
+    }
+
+    if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
+
+    // Clean up the previous avatar file (if any) so they don't pile up on
+    // disk every time someone changes their picture.
+    const existing = getAccount(email);
+    if (existing?.avatarUrl) {
+      const oldPath = path.join(AVATAR_DIR, path.basename(existing.avatarUrl));
+      fs.unlink(oldPath, () => {}); // best-effort; fine if it's already gone
+    }
+
+    const filename = `${crypto.createHash('sha256').update(email).digest('hex')}-${Date.now()}.${ext}`;
+    fs.writeFileSync(path.join(AVATAR_DIR, filename), buffer);
+    patch.avatarUrl = `/avatars/${filename}`;
+  }
+
+  const updated = setAccountProfile(email, patch);
+  sendJson(res, 200, { email, displayName: updated?.displayName || '', avatarUrl: updated?.avatarUrl || null });
 }
 
 // ---------- route handlers ----------
@@ -461,6 +643,14 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/auth/google' && req.method === 'POST') return await handleGoogleAuth(req, res, maybeUserId);
       if (pathname === '/api/auth/logout' && req.method === 'POST') return await handleLogout(req, res);
       if (pathname === '/api/auth/me' && req.method === 'GET') return await handleMe(req, res);
+      if (pathname === '/api/auth/forgot-password' && req.method === 'POST') return await handleForgotPassword(req, res);
+      if (pathname === '/api/auth/reset-password' && req.method === 'POST') return await handleResetPassword(req, res);
+
+      // Profile routes also sit before the userId-required check — they use
+      // requireSessionEmail internally (a real account, not a device id) and
+      // return their own 401 rather than the generic 400 below.
+      if (pathname === '/api/profile' && req.method === 'GET') return await handleGetProfile(req, res);
+      if (pathname === '/api/profile' && req.method === 'PUT') return await handlePutProfile(req, res);
 
       const userId = maybeUserId;
       if (!userId) return sendJson(res, 400, { error: 'Missing X-User-Id header.' });
@@ -475,6 +665,8 @@ const server = http.createServer(async (req, res) => {
 
       return sendJson(res, 404, { error: 'Unknown API route' });
     }
+
+    if (pathname.startsWith('/avatars/') && req.method === 'GET') return serveAvatar(req, res, pathname);
 
     // static frontend
     if (req.method === 'GET') return serveStatic(req, res, pathname);
@@ -493,6 +685,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
     console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
+    console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);
   });
 }

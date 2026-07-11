@@ -114,6 +114,24 @@
   #googleSignInDiv{display:flex;justify-content:center;}
   .modal .btn{width:100%;margin-top:16px;}
 
+  /* ---------- account promo (dashboard, anonymous users only) ---------- */
+  .account-promo{background:linear-gradient(135deg, rgba(63,182,168,0.14), rgba(232,163,61,0.08));border:1px solid var(--accent);border-radius:var(--radius);padding:18px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;position:relative;}
+  .account-promo .content{flex:1;min-width:220px;}
+  .account-promo h3{margin:0 0 6px;font-size:15px;}
+  .account-promo ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.6;}
+  .account-promo .actions{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+  .account-promo .dismiss{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px;}
+  @media (max-width: 640px){
+    .account-promo{flex-direction:column;align-items:stretch;}
+    .account-promo .actions{width:100%;justify-content:space-between;}
+    .account-promo .btn{flex:1;}
+  }
+
+  /* ---------- profile ---------- */
+  .avatar-row{display:flex;align-items:center;gap:18px;margin-bottom:6px;flex-wrap:wrap;}
+  .avatar-preview{width:88px;height:88px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:var(--muted);overflow:hidden;flex-shrink:0;}
+  .avatar-preview img{width:100%;height:100%;object-fit:cover;}
+
   /* ---------- mobile ---------- */
   @media (max-width: 640px){
     header{padding:12px 14px;}
@@ -150,18 +168,39 @@
 <div class="modal-overlay" id="authModal" hidden>
   <div class="modal">
     <button class="modal-close" onclick="closeAuthModal()">✕</button>
-    <h2>Sign in to Next Break</h2>
-    <div class="hint" style="margin-top:0;">Save your setup to an account so it's there next time — on any device.</div>
-    <div class="auth-toggle">
+    <h2 id="authTitle">Sign in to Next Break</h2>
+    <div class="hint" style="margin-top:0;" id="authSubtitle">Save your setup to an account so it's there next time — on any device.</div>
+    <div class="auth-toggle" id="authToggle">
       <button id="authModeLogin" onclick="setAuthMode('login')">Log in</button>
       <button id="authModeSignup" onclick="setAuthMode('signup')">Sign up</button>
     </div>
-    <label>Email</label>
-    <input type="text" id="authEmail" placeholder="you@example.com" autocomplete="email">
-    <label>Password</label>
-    <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+    <div id="authEmailField">
+      <label>Email</label>
+      <input type="text" id="authEmail" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div id="authPasswordField">
+      <label id="authPasswordLabel">Password</label>
+      <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div id="authConfirmField" style="display:none;">
+      <label>Confirm new password</label>
+      <input type="password" id="authConfirmPassword" placeholder="••••••••" autocomplete="new-password">
+    </div>
+    <div id="authTermsField" style="display:none;margin-top:16px;">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;color:var(--text);font-size:13px;margin:0;">
+        <input type="checkbox" id="authAcceptTerms" style="margin-top:3px;width:auto;">
+        <span>I agree to the <a href="/terms.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Terms and Conditions</a></span>
+      </label>
+    </div>
     <div class="auth-error" id="authError"></div>
+    <div class="auth-success" id="authSuccess" style="color:var(--accent);font-size:12.5px;margin-top:10px;line-height:1.4;"></div>
     <button class="btn" id="authSubmitBtn" onclick="submitAuthForm()">Log in</button>
+    <div id="authForgotLink" style="text-align:center;margin-top:14px;">
+      <a href="#" onclick="setAuthMode('forgot');return false;" style="color:var(--muted);font-size:12.5px;text-decoration:none;">Forgot password?</a>
+    </div>
+    <div id="authBackLink" style="display:none;text-align:center;margin-top:14px;">
+      <a href="#" onclick="setAuthMode('login');return false;" style="color:var(--muted);font-size:12.5px;text-decoration:none;">← Back to log in</a>
+    </div>
     <div class="auth-divider" id="googleDivider" style="display:none;">or</div>
     <div id="googleSignInDiv"></div>
   </div>
@@ -242,6 +281,8 @@
       <button class="btn secondary small" onclick="showView('setup')">Edit setup</button>
     </div>
 
+    <div id="accountPromo" style="display:none;"></div>
+
     <div class="panel">
       <h2>Upcoming breaks</h2>
       <div class="hint" style="margin:0 0 14px;">Click a break to see (or unlock) travel deals for those dates.</div>
@@ -251,6 +292,32 @@
     <div class="panel">
       <h2>Things to do in <span id="hometownLabel">your hometown</span></h2>
       <div id="activitiesGrid" class="activities-grid"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE VIEW (logged-in users only) -->
+  <div id="view-profile" style="display:none;">
+    <div class="panel">
+      <h2>Your profile</h2>
+      <div class="avatar-row">
+        <div class="avatar-preview" id="avatarPreview">?</div>
+        <div>
+          <button class="btn secondary small" onclick="document.getElementById('avatarFileInput').click()">Change photo</button>
+          <input type="file" id="avatarFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleAvatarFileChange(this)">
+          <div class="hint" style="margin:8px 0 0;">PNG, JPEG, or WebP, up to 2MB.</div>
+        </div>
+      </div>
+
+      <label>Display name</label>
+      <input type="text" id="profileDisplayName" placeholder="e.g. Mark" maxlength="60">
+
+      <label>Email</label>
+      <input type="text" id="profileEmail" disabled style="opacity:.65;">
+
+      <div class="auth-error" id="profileError"></div>
+      <div style="margin-top:20px;">
+        <button class="btn" onclick="saveProfile()">Save profile</button>
+      </div>
     </div>
   </div>
 
@@ -300,6 +367,7 @@ function renderAccountArea(){
   const area = document.getElementById('accountArea');
   if(authState.loggedIn){
     area.innerHTML = `
+      <button class="nav-btn" id="navProfile" onclick="showView('profile')">Profile</button>
       <span class="account-email">${authState.email}</span>
       <button class="nav-btn" onclick="logout()">Log out</button>
     `;
@@ -308,11 +376,16 @@ function renderAccountArea(){
   }
 }
 
-function openAuthModal(){
+let pendingResetToken = null; // set on init() if the URL has ?resetToken=
+
+function openAuthModal(mode){
   document.getElementById('authError').textContent = '';
+  document.getElementById('authSuccess').textContent = '';
   document.getElementById('authEmail').value = '';
   document.getElementById('authPassword').value = '';
-  setAuthMode('login');
+  document.getElementById('authConfirmPassword').value = '';
+  document.getElementById('authAcceptTerms').checked = false;
+  setAuthMode(mode || 'login');
   document.getElementById('authModal').hidden = false;
   if(authState.googleClientId) setUpGoogleButton();
 }
@@ -322,14 +395,46 @@ function closeAuthModal(){
 
 function setAuthMode(mode){
   authMode = mode;
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authSuccess').textContent = '';
+
+  const isLoginOrSignup = mode === 'login' || mode === 'signup';
+  document.getElementById('authToggle').style.display = isLoginOrSignup ? '' : 'none';
   document.getElementById('authModeLogin').classList.toggle('active', mode==='login');
   document.getElementById('authModeSignup').classList.toggle('active', mode==='signup');
-  document.getElementById('authSubmitBtn').textContent = mode==='login' ? 'Log in' : 'Sign up';
+
+  document.getElementById('authEmailField').style.display = (mode === 'reset') ? 'none' : '';
+  document.getElementById('authPasswordField').style.display = (mode === 'forgot') ? 'none' : '';
+  document.getElementById('authConfirmField').style.display = (mode === 'reset') ? '' : 'none';
+  // Signup always needs terms accepted. Login only needs it shown when
+  // Google is configured — a Google click from the "Log in" tab can still
+  // end up creating a brand-new account, and the checkbox needs to be
+  // visible and checkable before that happens.
+  document.getElementById('authTermsField').style.display = (mode === 'signup' || (mode === 'login' && authState.googleClientId)) ? '' : 'none';
+  document.getElementById('authForgotLink').style.display = (mode === 'login') ? '' : 'none';
+  document.getElementById('authBackLink').style.display = (mode === 'forgot' || mode === 'reset') ? '' : 'none';
+  document.getElementById('googleDivider').style.display = (isLoginOrSignup && authState.googleClientId) ? '' : 'none';
+  document.getElementById('googleSignInDiv').style.display = isLoginOrSignup ? '' : 'none';
+
+  const titles = { login: 'Sign in to Next Break', signup: 'Sign in to Next Break', forgot: 'Reset your password', reset: 'Set a new password' };
+  const subtitles = {
+    login: "Save your setup to an account so it's there next time — on any device.",
+    signup: "Save your setup to an account so it's there next time — on any device.",
+    forgot: "Enter your email and we'll send you a link to reset your password.",
+    reset: 'Choose a new password for your account.'
+  };
+  document.getElementById('authTitle').textContent = titles[mode];
+  document.getElementById('authSubtitle').textContent = subtitles[mode];
+
+  const submitLabels = { login: 'Log in', signup: 'Sign up', forgot: 'Send reset link', reset: 'Set new password' };
+  document.getElementById('authSubmitBtn').textContent = submitLabels[mode];
   document.getElementById('authPassword').autocomplete = mode==='login' ? 'current-password' : 'new-password';
-  document.getElementById('authError').textContent = '';
 }
 
 async function submitAuthForm(){
+  if(authMode === 'forgot') return submitForgotPassword();
+  if(authMode === 'reset') return submitResetPassword();
+
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
   const errEl = document.getElementById('authError');
@@ -343,16 +448,68 @@ async function submitAuthForm(){
     errEl.textContent = 'Password must be at least 8 characters.';
     return;
   }
+  if(authMode === 'signup' && !document.getElementById('authAcceptTerms').checked){
+    errEl.textContent = 'Please accept the Terms and Conditions to create an account.';
+    return;
+  }
 
   try{
     await api(authMode === 'login' ? '/api/auth/login' : '/api/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, acceptedTerms: document.getElementById('authAcceptTerms').checked })
     });
     closeAuthModal();
     await refreshAuthState();
     showBanner('success', authMode === 'login' ? 'Logged in.' : 'Account created — your setup is now saved to this account.');
     await showView(currentView);
+  }catch(e){
+    errEl.textContent = e.message;
+  }
+}
+
+async function submitForgotPassword(){
+  const email = document.getElementById('authEmail').value.trim();
+  const errEl = document.getElementById('authError');
+  const okEl = document.getElementById('authSuccess');
+  errEl.textContent = '';
+  okEl.textContent = '';
+
+  if(!email){
+    errEl.textContent = 'Enter your email address.';
+    return;
+  }
+  try{
+    const result = await api('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+    okEl.textContent = result.message;
+  }catch(e){
+    errEl.textContent = e.message;
+  }
+}
+
+async function submitResetPassword(){
+  const password = document.getElementById('authPassword').value;
+  const confirm = document.getElementById('authConfirmPassword').value;
+  const errEl = document.getElementById('authError');
+  errEl.textContent = '';
+
+  if(password.length < 8){
+    errEl.textContent = 'Password must be at least 8 characters.';
+    return;
+  }
+  if(password !== confirm){
+    errEl.textContent = 'Passwords do not match.';
+    return;
+  }
+  try{
+    await api('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token: pendingResetToken, password }) });
+    pendingResetToken = null;
+    // Drop ?resetToken= from the URL now that it's been used.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('resetToken');
+    window.history.replaceState({}, '', url);
+    setAuthMode('login');
+    document.getElementById('authSuccess').textContent = '';
+    showBanner('success', 'Password updated — log in with your new password.');
   }catch(e){
     errEl.textContent = e.message;
   }
@@ -388,8 +545,12 @@ function setUpGoogleButton(){
 
 async function handleGoogleCredential(response){
   const errEl = document.getElementById('authError');
+  // The checkbox only matters if this Google sign-in turns out to be a
+  // brand-new account — the server ignores it entirely for an existing
+  // account, so it's safe to always send its current state here.
+  const acceptedTerms = document.getElementById('authAcceptTerms').checked;
   try{
-    await api('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential: response.credential }) });
+    await api('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential: response.credential, acceptedTerms }) });
     closeAuthModal();
     await refreshAuthState();
     showBanner('success', 'Logged in with Google.');
@@ -406,6 +567,80 @@ function loadGoogleScript(){
   s.defer = true;
   s.onload = () => { if(!document.getElementById('authModal').hidden) setUpGoogleButton(); };
   document.head.appendChild(s);
+}
+
+// ---------- profile (avatar + display name) ----------
+let pendingAvatarDataUrl = null; // set only when the user picks a new file, cleared after a successful save
+
+function renderAvatarPreview(avatarUrl, displayName, email){
+  const el = document.getElementById('avatarPreview');
+  if(avatarUrl){
+    el.innerHTML = `<img src="${avatarUrl}" alt="">`;
+  }else{
+    const initial = (displayName || email || '?').trim().charAt(0).toUpperCase() || '?';
+    el.textContent = initial;
+  }
+}
+
+async function fillProfileForm(){
+  document.getElementById('profileError').textContent = '';
+  pendingAvatarDataUrl = null;
+  document.getElementById('avatarFileInput').value = '';
+
+  let profile;
+  try{
+    profile = await api('/api/profile');
+  }catch(e){
+    document.getElementById('profileError').textContent = 'Could not load profile: ' + e.message;
+    return;
+  }
+  document.getElementById('profileDisplayName').value = profile.displayName || '';
+  document.getElementById('profileEmail').value = profile.email;
+  renderAvatarPreview(profile.avatarUrl, profile.displayName, profile.email);
+}
+
+function handleAvatarFileChange(input){
+  const file = input.files && input.files[0];
+  const errEl = document.getElementById('profileError');
+  errEl.textContent = '';
+  if(!file) return;
+
+  const allowed = ['image/png', 'image/jpeg', 'image/webp'];
+  if(!allowed.includes(file.type)){
+    errEl.textContent = 'Please choose a PNG, JPEG, or WebP image.';
+    input.value = '';
+    return;
+  }
+  if(file.size > 2 * 1024 * 1024){
+    errEl.textContent = 'Image is too large — please use one under 2MB.';
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingAvatarDataUrl = reader.result;
+    document.getElementById('avatarPreview').innerHTML = `<img src="${pendingAvatarDataUrl}" alt="">`;
+  };
+  reader.onerror = () => { errEl.textContent = 'Could not read that file — please try another image.'; };
+  reader.readAsDataURL(file);
+}
+
+async function saveProfile(){
+  const errEl = document.getElementById('profileError');
+  errEl.textContent = '';
+  const displayName = document.getElementById('profileDisplayName').value.trim();
+
+  const body = { displayName };
+  if(pendingAvatarDataUrl) body.avatarDataUrl = pendingAvatarDataUrl;
+
+  try{
+    await api('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
+    pendingAvatarDataUrl = null;
+    showBanner('success', 'Profile saved.');
+  }catch(e){
+    errEl.textContent = e.message;
+  }
 }
 
 // ---------- banners ----------
@@ -541,13 +776,22 @@ async function fillSetupForm(){
 // ---------- view switching ----------
 let currentView = 'dashboard';
 async function showView(view){
+  // Profile is only reachable while logged in — the link that leads here
+  // only renders when authState.loggedIn, but guard directly too in case
+  // something else ever tries to navigate here (e.g. a stale bookmark).
+  if(view === 'profile' && !authState.loggedIn) view = 'dashboard';
+
   currentView = view;
   document.getElementById('view-setup').style.display = view==='setup' ? '' : 'none';
   document.getElementById('view-dashboard').style.display = view==='dashboard' ? '' : 'none';
+  document.getElementById('view-profile').style.display = view==='profile' ? '' : 'none';
   document.getElementById('navSetup').classList.toggle('active', view==='setup');
   document.getElementById('navDash').classList.toggle('active', view==='dashboard');
+  const navProfile = document.getElementById('navProfile');
+  if(navProfile) navProfile.classList.toggle('active', view==='profile');
   if(view==='setup') await fillSetupForm();
   if(view==='dashboard') await renderDashboard();
+  if(view==='profile') await fillProfileForm();
 }
 
 // ---------- dashboard ----------
@@ -567,7 +811,40 @@ function fmtDateTime(isoWithOffset){
   return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
 }
 
+// ---------- account promo (dashboard, anonymous users only) ----------
+const ACCOUNT_PROMO_DISMISSED_KEY = 'nextbreak_account_promo_dismissed';
+
+function renderAccountPromo(){
+  const el = document.getElementById('accountPromo');
+  const dismissed = localStorage.getItem(ACCOUNT_PROMO_DISMISSED_KEY) === '1';
+  if(authState.loggedIn || dismissed){
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="content">
+      <h3>Create a free account</h3>
+      <ul>
+        <li>Save your setup and access it from any device</li>
+        <li>Reset your password anytime if you forget it</li>
+        <li>Never lose your roster if you clear your browser</li>
+      </ul>
+    </div>
+    <div class="actions">
+      <button class="btn small" onclick="openAuthModal('signup')">Create free account</button>
+      <button class="dismiss" onclick="dismissAccountPromo()" title="Not now" aria-label="Dismiss">✕</button>
+    </div>
+  `;
+}
+
+function dismissAccountPromo(){
+  localStorage.setItem(ACCOUNT_PROMO_DISMISSED_KEY, '1');
+  document.getElementById('accountPromo').style.display = 'none';
+}
+
 async function renderDashboard(){
+  renderAccountPromo();
   let data;
   try{
     data = await api('/api/breaks');
@@ -743,6 +1020,16 @@ async function renderActivities(hometown){
 (async function init(){
   await refreshAuthState();
   if(authState.googleClientId) loadGoogleScript();
+
+  // A password-reset email link lands here as /?resetToken=... — if present,
+  // jump straight into the "set a new password" form instead of the dashboard.
+  const params = new URLSearchParams(window.location.search);
+  const resetToken = params.get('resetToken');
+  if(resetToken){
+    pendingResetToken = resetToken;
+    openAuthModal('reset');
+  }
+
   // If they were mid-setup previously we still just default to dashboard;
   // it gracefully shows an empty state prompting Setup if nothing's saved.
   await showView('dashboard');

@@ -10,10 +10,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { computeUpcomingBreaks, breakStatus, toISO, CURRENCY_SYMBOLS } from './lib/deals.js';
-import { getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord } from './lib/store.js';
+import {
+  getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
+  getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser
+} from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { findRealDeals } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
+import { hashPassword, verifyPassword, createSessionToken, isValidEmail } from './lib/auth.js';
+import { verifyGoogleIdToken } from './lib/googleAuth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -38,6 +43,14 @@ const TRAVELPAYOUTS_MARKER = process.env.TRAVELPAYOUTS_MARKER || '';
 const VIATOR_API_KEY = process.env.VIATOR_API_KEY || '';
 const VIATOR_PID = process.env.VIATOR_PID || '';
 const VIATOR_MCID = process.env.VIATOR_MCID || '';
+
+// Google Sign-In client ID. This is NOT a secret — it's meant to be public
+// and embedded in frontend JS (that's how Google Identity Services works),
+// same category as a Stripe *publishable* key. Get one free at
+// https://console.cloud.google.com/apis/credentials
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+
+const SESSION_COOKIE = 'nb_session';
 
 // ---------- tiny helpers ----------
 function sendJson(res, status, obj) {
@@ -76,8 +89,46 @@ async function readJsonBody(req) {
   }
 }
 
+function parseCookies(req) {
+  const header = req.headers.cookie || '';
+  const out = {};
+  header.split(';').forEach(part => {
+    const idx = part.indexOf('=');
+    if (idx === -1) return;
+    const k = part.slice(0, idx).trim();
+    const v = part.slice(idx + 1).trim();
+    if (k) out[k] = decodeURIComponent(v);
+  });
+  return out;
+}
+
+// Identity resolution: a logged-in session (cookie) takes priority over
+// the anonymous per-device X-User-Id header. This means once someone logs
+// in, all their data (settings, unlocks) is keyed by their account email
+// instead of the random device id — which is exactly what lets it follow
+// them across devices/browsers.
 function getUserId(req) {
+  const cookies = parseCookies(req);
+  const sessionEmail = getSessionEmail(cookies[SESSION_COOKIE]);
+  if (sessionEmail) return sessionEmail;
   return req.headers['x-user-id'] || null;
+}
+
+function isHttpsRequest(req) {
+  return (req.headers['x-forwarded-proto'] || '').includes('https');
+}
+
+function setSessionCookie(req, res, token) {
+  const maxAge = 60 * 60 * 24 * 90; // 90 days
+  const parts = [`${SESSION_COOKIE}=${token}`, 'HttpOnly', 'Path=/', `Max-Age=${maxAge}`, 'SameSite=Lax'];
+  if (isHttpsRequest(req)) parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function clearSessionCookie(req, res) {
+  const parts = [`${SESSION_COOKIE}=`, 'HttpOnly', 'Path=/', 'Max-Age=0', 'SameSite=Lax'];
+  if (isHttpsRequest(req)) parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
 }
 
 function originFromRequest(req) {
@@ -167,6 +218,77 @@ async function buildActivitiesForSettings(settings) {
     console.error('[viator] findActivities threw:', e.message);
     return { source: 'no-results', activities: [] };
   }
+}
+
+// ---------- auth ----------
+// `deviceId` here is whatever anonymous X-User-Id this browser already had
+// before logging in/signing up — if it has saved settings, they're carried
+// over into the account rather than forcing the person to redo Setup.
+async function handleSignup(req, res, deviceId) {
+  const body = await readJsonBody(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '');
+
+  if (!isValidEmail(email)) return sendJson(res, 400, { error: 'Enter a valid email address.' });
+  if (password.length < 8) return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+  if (getAccount(email)) return sendJson(res, 409, { error: 'An account with that email already exists — try logging in instead.' });
+
+  createAccount(email, { passwordHash: hashPassword(password) });
+  if (deviceId) migrateUser(deviceId, email);
+
+  const token = createSessionToken();
+  createSession(token, email);
+  setSessionCookie(req, res, token);
+  sendJson(res, 200, { email });
+}
+
+async function handleLogin(req, res, deviceId) {
+  const body = await readJsonBody(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '');
+
+  const account = getAccount(email);
+  if (!account || !account.passwordHash || !verifyPassword(password, account.passwordHash)) {
+    return sendJson(res, 401, { error: 'Incorrect email or password.' });
+  }
+
+  if (deviceId) migrateUser(deviceId, email);
+
+  const token = createSessionToken();
+  createSession(token, email);
+  setSessionCookie(req, res, token);
+  sendJson(res, 200, { email });
+}
+
+async function handleGoogleAuth(req, res, deviceId) {
+  if (!GOOGLE_CLIENT_ID) return sendJson(res, 500, { error: 'Google sign-in is not configured on this server.' });
+  const body = await readJsonBody(req);
+  const idToken = body.credential || body.idToken;
+  if (!idToken) return sendJson(res, 400, { error: 'Missing Google credential.' });
+
+  const claims = await verifyGoogleIdToken({ idToken, clientId: GOOGLE_CLIENT_ID });
+  if (!claims) return sendJson(res, 401, { error: 'Could not verify Google sign-in. Please try again.' });
+
+  upsertGoogleAccount(claims.email, claims.sub);
+  if (deviceId) migrateUser(deviceId, claims.email);
+
+  const token = createSessionToken();
+  createSession(token, claims.email);
+  setSessionCookie(req, res, token);
+  sendJson(res, 200, { email: claims.email });
+}
+
+async function handleLogout(req, res) {
+  const cookies = parseCookies(req);
+  deleteSession(cookies[SESSION_COOKIE]);
+  clearSessionCookie(req, res);
+  sendJson(res, 200, { loggedOut: true });
+}
+
+async function handleMe(req, res) {
+  const cookies = parseCookies(req);
+  const email = getSessionEmail(cookies[SESSION_COOKIE]);
+  sendJson(res, 200, { loggedIn: !!email, email: email || null, googleClientId: GOOGLE_CLIENT_ID || null });
 }
 
 // ---------- route handlers ----------
@@ -326,7 +448,21 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname.startsWith('/api/')) {
       res.setHeader('Cache-Control', 'no-store');
-      const userId = getUserId(req);
+
+      // Auth routes deliberately come before the "userId required" check
+      // below — a brand-new visitor with no X-User-Id yet (or one who
+      // cleared localStorage) still needs to be able to sign up/log in.
+      // getUserId(req) here is either an existing session email, an
+      // existing anonymous device id, or null — all three are valid
+      // inputs to the handlers (migrateUser no-ops on a falsy deviceId).
+      const maybeUserId = getUserId(req);
+      if (pathname === '/api/auth/signup' && req.method === 'POST') return await handleSignup(req, res, maybeUserId);
+      if (pathname === '/api/auth/login' && req.method === 'POST') return await handleLogin(req, res, maybeUserId);
+      if (pathname === '/api/auth/google' && req.method === 'POST') return await handleGoogleAuth(req, res, maybeUserId);
+      if (pathname === '/api/auth/logout' && req.method === 'POST') return await handleLogout(req, res);
+      if (pathname === '/api/auth/me' && req.method === 'GET') return await handleMe(req, res);
+
+      const userId = maybeUserId;
       if (!userId) return sendJson(res, 400, { error: 'Missing X-User-Id header.' });
 
       if (pathname === '/api/settings' && req.method === 'GET') return await handleGetSettings(req, res, userId);
@@ -356,6 +492,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Next Break server running at http://localhost:${PORT}`);
     console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
     console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
+    console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);
   });
 }

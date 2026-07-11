@@ -23,6 +23,14 @@ services:
         value: "749343"
       - key: TRAVELPAYOUTS_TOKEN
         sync: false # set this manually in the dashboard, not in git
+      - key: VIATOR_API_KEY
+        sync: false # set this manually in the dashboard, not in git
+      - key: VIATOR_PID
+        sync: false # not secret, but per-account — set manually
+      - key: VIATOR_MCID
+        sync: false # not secret, but per-account — set manually
+      - key: GOOGLE_CLIENT_ID
+        sync: false # not secret, but per-project — set manually (leave blank to hide the Google button)
     disk:
       name: next-break-data
       mountPath: /data

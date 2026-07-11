@@ -67,6 +67,47 @@ logs the raw key names of the first result it gets back
 real API key, and adjust the field names there if anything looks off
 (e.g. missing prices or images on cards that should have them).
 
+## Accounts — email/password and Google Sign-In
+
+People can save their setup to a real account instead of relying on their
+browser's local storage, so it follows them across devices. Two ways in,
+both optional and both landing in the same account if used with the same
+email:
+
+- **Email + password.** Passwords are hashed with Node's built-in
+  `crypto.scryptSync` (a slow, salted KDF) — there's no bcrypt/argon2
+  dependency, and plain-text passwords are never stored or logged.
+- **Google Sign-In**, if `GOOGLE_CLIENT_ID` is set (see below). Verified
+  server-side against Google's `tokeninfo` endpoint, checking both the
+  token's audience (so a token issued for a different app can't be used
+  here) and that the Google account's email is verified.
+
+Sessions are a random 32-byte token in an HttpOnly, SameSite=Lax cookie
+(Secure too, once served over HTTPS) — no JWT, no session-store dependency,
+just an entry in `data.json`.
+
+Signing up or logging in from a browser that already has anonymous
+in-progress setup (device-scoped, pre-login) carries that setup into the
+account automatically, so nobody has to redo Setup just because they
+decided to make an account. Existing account data is never overwritten by
+this migration.
+
+Logging in is entirely optional — the app works exactly as before (settings
+tied to a random per-browser device ID) if nobody signs up.
+
+### Setting up Google Sign-In
+
+1. Go to [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials).
+2. Create an **OAuth 2.0 Client ID** of type **Web application**.
+3. Add your site's URL(s) (e.g. `https://www.nextbreak.com.au`, and
+   `http://localhost:3000` for local testing) under **Authorized JavaScript origins**.
+4. Copy the Client ID into `GOOGLE_CLIENT_ID` in `.env` (or your host's
+   Environment tab). It's not a secret — it's meant to be public, the same
+   category as a Stripe *publishable* key — so it's fine to paste directly
+   rather than needing extra protection.
+5. Leave it blank to hide the Google button entirely and offer
+   email/password login only.
+
 ## Why no `npm install`?
 
 The whole backend is built on Node's built-ins only (`http`, `fetch`,
@@ -113,6 +154,7 @@ illustrative mock deals instead of real ones.
 | `VIATOR_API_KEY` | For real activities | — | From your Viator partner account. Without it, "things to do" shows generic suggestions instead of real listings. |
 | `VIATOR_PID` | For commission tracking | — | Your Viator Partner ID — attached to every activity booking link. |
 | `VIATOR_MCID` | For commission tracking | — | Your Viator campaign ID — also attached to booking links. |
+| `GOOGLE_CLIENT_ID` | For Google Sign-In | — | Not secret — from Google Cloud Console (see **Accounts** above). Leave blank to hide the Google button; email/password login always works regardless. |
 | `PORT` | No | `3000` | |
 | `DATA_FILE` | No | `./data.json` | Where user settings are stored |
 | `STRIPE_SECRET_KEY` | No | — | Unused (paywall is off — see below). Only needed if you re-enable it. |
@@ -154,6 +196,15 @@ public/index.html                 Frontend (vanilla JS, no build step)
   hometown, or a `not-configured`/`no-results` state if unavailable.
 - `PUT /api/settings` — save Setup (hometown, home airport, currency,
   roster pattern or manual breaks).
+- `POST /api/auth/signup` — create an account (`{email, password}`), sets a
+  session cookie, migrates any in-progress anonymous setup.
+- `POST /api/auth/login` — log into an existing account, same behavior.
+- `POST /api/auth/google` — log in/sign up via a Google ID token
+  (`{credential}`), verified server-side against Google.
+- `POST /api/auth/logout` — clear the session cookie.
+- `GET /api/auth/me` — current login state (`{loggedIn, email, googleClientId}`);
+  `googleClientId` is `null` if Google Sign-In isn't configured, which is
+  what the frontend uses to decide whether to show the Google button.
 
 ## Deploying
 
@@ -192,9 +243,12 @@ host's dashboard/CLI, same handling as everything else sensitive so far.
 
 ## Known limitations
 
-- **No real login.** Each browser gets a random device ID stored in
-  `localStorage` — there's no password, email, or account recovery, and it
-  won't sync across devices. Fine for testing or a single-device MVP.
+- **Login is optional, and there's no password reset yet.** Signing up
+  saves your setup to an account (email/password or Google) that follows
+  you across devices — but if you forget your password, there's currently
+  no "forgot password" email flow to recover it. Anyone not signed in still
+  falls back to the original per-browser device ID (a step below fine for
+  testing, but not a real durable identity).
 - **`data.json` is not a real database.** It's a single file rewritten on
   every change — it'll get slow and is not safe for concurrent writes at
   any real scale. Swap in Postgres/SQLite-with-a-real-driver before you
@@ -211,8 +265,8 @@ host's dashboard/CLI, same handling as everything else sensitive so far.
 
 - Deploy: this needs a host that runs a persistent Node process (Render,
   Railway, Fly.io, a VPS) — not a pure static host.
-- Add real accounts: email + magic link or OAuth, replacing the
-  `X-User-Id` header hack.
+- Add a "forgot password" email flow (needs a transactional email
+  provider — Resend, Postmark, SES, etc.).
 - Add a real database once `data.json` starts to strain.
 - Expand `REAL_DESTINATIONS` in `lib/travelpayouts.js` with more curated
   destinations to increase the odds of a cache hit per break.

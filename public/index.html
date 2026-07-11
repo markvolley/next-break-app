@@ -315,16 +315,6 @@
           <label>Home airport (for real flight prices) *</label>
           <input type="text" id="originAirport" placeholder="e.g. PER" maxlength="4" style="text-transform:uppercase;" required>
         </div>
-        <div>
-          <label>Currency *</label>
-          <select id="currency" required>
-            <option value="AUD">AUD A$</option>
-            <option value="USD">USD $</option>
-            <option value="CAD">CAD C$</option>
-            <option value="GBP">GBP £</option>
-            <option value="EUR">EUR €</option>
-          </select>
-        </div>
       </div>
       <div class="hint">The 3-letter airport code you'd actually fly out of (e.g. PER for Perth, BNE for Brisbane).</div>
     </div>
@@ -864,11 +854,10 @@ function renderManualRows(){
   }
 }
 
-function validateSetup({hometown, originAirport, currency, rosterMode, daysOnRaw, daysOffRaw, nextBreakStart, manualBreaks}){
+function validateSetup({hometown, originAirport, rosterMode, daysOnRaw, daysOffRaw, nextBreakStart, manualBreaks}){
   const missing = [];
   if(!hometown) missing.push('Hometown');
   if(!originAirport) missing.push('Home airport');
-  if(!currency) missing.push('Currency');
   if(rosterMode === 'pattern'){
     if(!daysOnRaw || parseInt(daysOnRaw) < 1) missing.push('Days ON');
     if(!daysOffRaw || parseInt(daysOffRaw) < 1) missing.push('Days OFF');
@@ -883,13 +872,12 @@ function validateSetup({hometown, originAirport, currency, rosterMode, daysOnRaw
 async function saveSetup(){
   const hometown = document.getElementById('hometown').value.trim();
   const originAirport = document.getElementById('originAirport').value.trim().toUpperCase();
-  const currency = document.getElementById('currency').value;
   const daysOnRaw = document.getElementById('daysOn').value;
   const daysOffRaw = document.getElementById('daysOff').value;
   const nextBreakStart = document.getElementById('nextBreakStart').value;
 
   const missing = validateSetup({
-    hometown, originAirport, currency, rosterMode: rosterModeDraft,
+    hometown, originAirport, rosterMode: rosterModeDraft,
     daysOnRaw, daysOffRaw, nextBreakStart, manualBreaks: manualBreaksDraft
   });
   if(missing.length){
@@ -900,7 +888,7 @@ async function saveSetup(){
   const settings = {
     hometown,
     originAirport,
-    currency,
+    currency: 'AUD',
     rosterMode: rosterModeDraft,
     pattern: {
       daysOn: parseInt(daysOnRaw),
@@ -931,7 +919,6 @@ async function fillSetupForm(){
   }
   document.getElementById('hometown').value = settings.hometown || '';
   document.getElementById('originAirport').value = settings.originAirport || '';
-  document.getElementById('currency').value = settings.currency || 'AUD';
   document.getElementById('daysOn').value = settings.pattern.daysOn;
   document.getElementById('daysOff').value = settings.pattern.daysOff;
   document.getElementById('nextBreakStart').value = settings.pattern.nextBreakStart || '';

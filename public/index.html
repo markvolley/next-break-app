@@ -225,11 +225,11 @@
   .break-select-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:4px;}
   .break-select-row h2{margin:0;}
   .break-projected{color:var(--muted);font-size:13px;}
-  .break-chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px;}
-  .break-chip{border-radius:var(--radius-pill);padding:8px 16px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);}
-  .break-chip.selected{background:var(--text);color:#101820;border:1px solid var(--text);}
-  .break-chip:not(.selected){background:transparent;color:var(--muted);border:1px solid rgba(244,238,227,0.3);}
-  .break-chip:not(.selected):hover{color:var(--text);border-color:rgba(244,238,227,0.5);}
+  #breaksList{margin-top:16px;}
+  .break-row .days-badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:var(--radius-pill);white-space:nowrap;}
+  .break-row .days-badge.ongoing{background:var(--accent2);color:#101820;}
+  .break-row .days-badge.soon{background:rgba(245,176,76,0.2);color:var(--accent2);}
+  .break-row .days-badge.later{background:rgba(244,238,227,0.12);color:var(--muted);}
   @media (max-width: 640px){
     .break-select-row{flex-direction:column;align-items:flex-start;}
   }
@@ -414,7 +414,6 @@
         <h2 id="breakHeading">Upcoming breaks</h2>
         <div class="break-projected" id="breakProjected"></div>
       </div>
-      <div class="break-chips" id="breakChips"></div>
       <div id="breaksList"></div>
     </div>
 
@@ -1050,7 +1049,7 @@ function scrollToSetup(){
 
 // ---------- dashboard ----------
 let currentBreaks = [];
-let openBreakKey = null;
+let openBreakKeys = new Set();
 let realPricesAvailable = false;
 let currentRosterMode = 'pattern';
 let currentPattern = null;
@@ -1114,25 +1113,29 @@ async function renderDashboard(){
   if(currentBreaks.length === 0){
     document.getElementById('breakHeading').textContent = 'Upcoming breaks';
     document.getElementById('breakProjected').textContent = '';
-    document.getElementById('breakChips').innerHTML = '';
     document.getElementById('breaksList').innerHTML = '<div class="empty">No upcoming breaks yet — head to Setup to add your roster.</div>';
     renderActivities(data.hometown);
     return;
   }
 
-  // Always land on the soonest break unless the current selection still
-  // matches one of the (re-fetched) upcoming breaks.
-  if(openBreakKey === null || !currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = currentBreaks[0].key;
+  // Drop any open keys for breaks that no longer exist (roster changed);
+  // default to expanding just the soonest break the first time breaks load.
+  openBreakKeys = new Set([...openBreakKeys].filter(k => currentBreaks.some(b => b.key === k)));
+  if(openBreakKeys.size === 0) openBreakKeys.add(currentBreaks[0].key);
 
   renderBreaksList();
-  if(openBreakKey && !dealsCache[openBreakKey]) loadDeals(openBreakKey);
+  openBreakKeys.forEach(key => { if(!dealsCache[key]) loadDeals(key); });
   renderActivities(data.hometown);
 }
 
-function selectBreak(key){
-  openBreakKey = key;
+function toggleBreak(key){
+  if(openBreakKeys.has(key)){
+    openBreakKeys.delete(key);
+  }else{
+    openBreakKeys.add(key);
+    if(!dealsCache[key]) loadDeals(key);
+  }
   renderBreaksList();
-  if(!dealsCache[key]) loadDeals(key);
 }
 
 async function loadDeals(key){
@@ -1145,7 +1148,18 @@ async function loadDeals(key){
     dealsCache[key] = { error: e.message };
   }
   dealsLoading[key] = false;
-  if(openBreakKey === key) renderBreaksList();
+  if(openBreakKeys.has(key)) renderBreaksList();
+}
+
+// "9 days away", "Starts tomorrow", "Happening now" — pulls straight from
+// the daysUntil/isOngoing/isSoon fields the server already computes.
+function daysBadge(b){
+  let text, cls;
+  if(b.isOngoing){ text = 'Happening now'; cls = 'ongoing'; }
+  else if(b.daysUntil === 0){ text = 'Starts today'; cls = 'ongoing'; }
+  else if(b.daysUntil === 1){ text = 'Starts tomorrow'; cls = 'soon'; }
+  else{ text = `${b.daysUntil} days away`; cls = b.isSoon ? 'soon' : 'later'; }
+  return `<span class="days-badge ${cls}">${text}</span>`;
 }
 
 // "11–17 Jul" if both dates fall in the same month, otherwise "28 Jun – 3 Jul".
@@ -1163,35 +1177,48 @@ function renderBreaksList(){
   const container = document.getElementById('breaksList');
   const heading = document.getElementById('breakHeading');
   const projected = document.getElementById('breakProjected');
-  const chips = document.getElementById('breakChips');
 
-  const selected = currentBreaks.find(b => b.key === openBreakKey) || currentBreaks[0];
-  if(!selected){
+  if(!currentBreaks.length){
     heading.textContent = 'Upcoming breaks';
     projected.textContent = '';
-    chips.innerHTML = '';
     container.innerHTML = '';
     return;
   }
 
-  heading.textContent = `Break of ${fmtDateRange(selected)}`;
-
+  heading.textContent = 'Upcoming breaks';
   projected.textContent = (currentRosterMode === 'pattern' && currentPattern && currentPattern.daysOn && currentPattern.daysOff)
     ? `Projected from ${currentPattern.daysOn} on / ${currentPattern.daysOff} off`
     : '';
 
-  chips.innerHTML = currentBreaks.slice(0, 6).map(b =>
-    `<button type="button" class="break-chip${b.key === selected.key ? ' selected' : ''}" onclick="selectBreak('${b.key}')">${fmtDateRange(b)}</button>`
-  ).join('');
-
-  const cached = dealsCache[selected.key];
-  if(!cached){
-    container.innerHTML = '<div class="empty">Looking up deals…</div>';
-  }else if(cached.error){
-    container.innerHTML = '<div class="empty">Could not load deals: ' + cached.error + '</div>';
-  }else{
-    container.innerHTML = dealsMarkup(cached);
-  }
+  container.innerHTML = currentBreaks.slice(0, 6).map(b => {
+    const isOpen = openBreakKeys.has(b.key);
+    let bodyHtml = '';
+    if(isOpen){
+      const cached = dealsCache[b.key];
+      if(!cached){
+        bodyHtml = '<div class="empty">Looking up deals…</div>';
+      }else if(cached.error){
+        bodyHtml = '<div class="empty">Could not load deals: ' + cached.error + '</div>';
+      }else{
+        bodyHtml = dealsMarkup(cached);
+      }
+    }
+    return `
+      <div class="accordion-item${isOpen ? ' open' : ''}">
+        <div class="break-row" onclick="toggleBreak('${b.key}')">
+          <div>
+            <div class="dates">${fmtDateRange(b)}</div>
+            <div class="meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
+          </div>
+          <div class="right">
+            ${daysBadge(b)}
+            <span class="chevron">›</span>
+          </div>
+        </div>
+        ${isOpen ? `<div class="accordion-body">${bodyHtml}</div>` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
 // ---------- destination photos (a real, unique photo of the actual place for

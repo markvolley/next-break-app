@@ -71,8 +71,8 @@
   .accordion-body{padding:0 18px 18px;border-top:1px solid var(--border);}
   .accordion-body .disclaimer{margin:16px 0;}
   .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
-  .deal-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;}
-  .deal-photo{position:relative;height:300px;display:flex;}
+  .deal-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;display:flex;flex-direction:column;}
+  .deal-photo{position:relative;height:300px;display:flex;flex-direction:column;}
   .deal-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:var(--border);}
   .deal-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0) 35%, rgba(16,24,32,0.92) 100%);}
   .deal-photo .region-tag{position:relative;z-index:2;align-self:flex-start;margin:14px 0 0 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);}
@@ -83,10 +83,10 @@
   .deal-photo .dest{font-weight:700;font-size:22px;color:#fff;overflow-wrap:break-word;}
   .deal-photo .type{font-size:13px;color:rgba(244,238,227,0.8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .deal-photo .price{font-weight:800;font-size:20px;color:var(--accent2);white-space:nowrap;flex:none;}
-  .deal-card-body{padding:14px;}
+  .deal-card-body{padding:14px;display:flex;flex-direction:column;flex:1;}
   .deal-card .discount{color:var(--accent2);font-size:12px;font-weight:700;display:block;margin-bottom:8px;}
   .deal-card .blurb{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4;}
-  .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);margin-top:6px;box-shadow:0 4px 14px rgba(245,176,76,0.3);}
+  .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);margin-top:auto;box-shadow:0 4px 14px rgba(245,176,76,0.3);}
   .deal-card .book-btn:hover{background:var(--text);}
   .links-row{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;}
   .links-row a{font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600;}
@@ -268,7 +268,10 @@
 <body>
 
 <header>
-  <h1 onclick="showView('landing')" style="cursor:pointer;">next break<span style="color:var(--accent2);">.</span></h1>
+  <h1 onclick="showView('landing')" style="cursor:pointer;">
+    <img src="/logo-favicon.svg" alt="" width="26" height="26" style="border-radius:6px;display:block;">
+    next break<span style="color:var(--accent2);">.</span>
+  </h1>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <div class="account-area" id="accountArea"></div>
   </div>

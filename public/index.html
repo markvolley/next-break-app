@@ -85,6 +85,8 @@
   .deal-photo .price{font-weight:800;font-size:20px;color:var(--accent2);white-space:nowrap;flex:none;}
   .deal-card-body{padding:14px;display:flex;flex-direction:column;flex:1;}
   .deal-card .discount{color:var(--accent2);font-size:12px;font-weight:700;display:block;margin-bottom:8px;}
+  .deal-card .weather-line{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text);margin:-3px 0 9px;}
+  .deal-card .weather-line .weather-label{color:var(--muted);font-weight:500;}
   .deal-card .blurb{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4;}
   .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);margin-top:auto;box-shadow:0 4px 14px rgba(245,176,76,0.3);}
   .deal-card .book-btn:hover{background:var(--text);}
@@ -1541,6 +1543,21 @@ function destPhotoUrl(iata){
   return DEST_PHOTO_BY_IATA[iata] || null;
 }
 
+// Weather is either a real short-range forecast (break within ~2 weeks) or
+// a "typical for this time of year" average from real historical data
+// (further out — a literal forecast that far ahead doesn't exist). Shown
+// as a small line with an info icon explaining which one it is, so it's
+// never mistaken for a guaranteed forecast on a break that's months away.
+function weatherLine(w){
+  if(!w) return '';
+  const range = `${w.high}°/${w.low}°`;
+  const tooltip = w.type === 'forecast'
+    ? `Short-range forecast for this exact date (${w.label ? w.label.toLowerCase() + ', ' : ''}high/low in °C).`
+    : `This break is more than two weeks out, so a real forecast doesn't exist yet — this is the typical high/low for ${w.month}, averaged from the last 3 years of actual weather.`;
+  const label = w.type === 'forecast' ? (w.label || 'Forecast') : `Typical for ${w.month}`;
+  return `<div class="weather-line">${w.icon} ${range} <span class="weather-label">${label}</span><span class="info-icon" tabindex="0">i<span class="info-tooltip">${tooltip}</span></span></div>`;
+}
+
 function dealsMarkup(result){
   const sym = result.currencySymbol;
 
@@ -1570,6 +1587,7 @@ function dealsMarkup(result){
       </div>
       <div class="deal-card-body">
         <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
+        ${weatherLine(d.weather)}
         <div class="blurb">${d.blurb}</div>
         <a class="book-btn" href="${d.bookUrl}" target="_blank" rel="noopener sponsored" onclick="trackDealClick('${d.iata}')">✈️ Book this fare →</a>
       </div>

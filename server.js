@@ -20,6 +20,7 @@ import {
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
+import { getWeatherForDate } from './lib/weather.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
 import { sendPasswordResetEmail } from './lib/email.js';
@@ -272,11 +273,48 @@ async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
   }
 
   const deals = selectDeals(cached.fares, { limit: 3, profile });
+  await attachWeather(deals);
   return {
     source: cached.fares.length ? 'real' : 'no-results',
     deals,
     fetchedAt: new Date(cached.fetchedAt).toISOString()
   };
+}
+
+// ---------- weather for the (up to 3) shown deals, per destination+date ----------
+// Only fetched for the deals actually being shown, not all 22 candidates —
+// piggybacks off the same "real data, cached, honest empty state" approach
+// as everything else here (see lib/weather.js). Cached separately from
+// dealsCache since it's keyed by exact flight date, not by break/origin.
+const WEATHER_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12h — forecasts firm up through the day
+const weatherCache = new Map(); // `${iata}|${dateISO}` -> { weather, fetchedAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of weatherCache) {
+    if (now - entry.fetchedAt > WEATHER_CACHE_TTL_MS) weatherCache.delete(key);
+  }
+}, 60 * 60 * 1000).unref();
+
+async function attachWeather(deals) {
+  await Promise.all(deals.map(async d => {
+    const dateISO = (d.departureAt || '').slice(0, 10);
+    if (!dateISO) { d.weather = null; return; }
+
+    const key = `${d.iata}|${dateISO}`;
+    let cached = weatherCache.get(key);
+    if (!cached || Date.now() - cached.fetchedAt >= WEATHER_CACHE_TTL_MS) {
+      let weather = null;
+      try {
+        weather = await getWeatherForDate({ iata: d.iata, dateISO });
+      } catch (e) {
+        console.error(`[weather] getWeatherForDate for ${d.iata} threw:`, e.message);
+      }
+      cached = { weather, fetchedAt: Date.now() };
+      weatherCache.set(key, cached);
+    }
+    d.weather = cached.weather;
+  }));
 }
 
 // ---------- activities for hometown (real, via Viator — no fake listings) ----------

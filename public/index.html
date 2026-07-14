@@ -127,19 +127,6 @@
   .links-row{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;}
   .links-row a{font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600;}
   .links-row a:hover{text-decoration:underline;}
-  .activities-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
-  .activity-card{border:1px solid var(--border);border-radius:16px;padding:14px;background:var(--panel2);}
-  .activity-card .cat{color:var(--accent2);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
-  .activity-card .title{font-weight:700;font-size:14px;margin-bottom:4px;}
-  .activity-card .desc{font-size:12.5px;color:var(--muted);line-height:1.4;}
-  .activity-card.real{padding:0;overflow:hidden;}
-  .activity-card.real img{width:100%;height:120px;object-fit:cover;display:block;background:var(--border);}
-  .activity-card.real .body{padding:14px;}
-  .activity-card .rating{color:var(--accent2);font-size:12px;font-weight:700;margin-bottom:6px;}
-  .activity-card .activity-price{color:var(--accent);font-size:15px;font-weight:800;margin:6px 0 2px;}
-  .activity-card .duration{color:var(--muted);font-size:12px;margin-bottom:8px;}
-  .activity-card a.book{color:var(--accent);font-size:12.5px;text-decoration:none;font-weight:600;display:block;margin-top:8px;}
-  .activity-card a.book:hover{text-decoration:underline;}
   .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:6px;}
   .stat-card{border:1px solid var(--border);border-radius:16px;padding:16px;background:var(--panel2);}
   .stat-card .n{font-size:26px;font-weight:800;letter-spacing:-.01em;}
@@ -346,7 +333,6 @@
     .top-bar .btn{width:100%;}
     .break-row{padding:14px;}
     .deals-grid{grid-template-columns:1fr;}
-    .activities-grid{grid-template-columns:1fr;}
     .links-row a{padding:4px 0;}
     .modal{padding:20px;}
     .btn-block-mobile{width:100%;}
@@ -537,11 +523,6 @@
         </div>
         <ol class="calendar-howto-steps" id="calendarHowToSteps"></ol>
       </div>
-    </div>
-
-    <div class="panel">
-      <h2>Things to do in <span id="hometownLabel">your hometown</span></h2>
-      <div id="activitiesGrid" class="activities-grid"></div>
     </div>
   </div>
 
@@ -1561,7 +1542,6 @@ async function renderDashboard(){
     document.getElementById('breakHeading').textContent = 'Upcoming breaks';
     document.getElementById('breakProjected').textContent = '';
     document.getElementById('breaksList').innerHTML = '<div class="empty">No upcoming breaks yet — head to Setup to add your roster.</div>';
-    renderActivities(data.hometown);
     return;
   }
 
@@ -1575,7 +1555,6 @@ async function renderDashboard(){
     if(!dealsCache[key]) loadDeals(key);
     if(!eventsCache[key]) loadEvents(key);
   });
-  renderActivities(data.hometown);
 }
 
 function toggleBreak(key){
@@ -2044,69 +2023,6 @@ function fmtEventDateTime(localDate, localTime){
   const [hh, mm] = localTime.split(':').map(Number);
   const withTime = new Date(y, m - 1, d, hh, mm);
   return dateStr + ' · ' + withTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-}
-
-// ---------- things to do (real Viator activities, falling back to real free
-// public spots sourced from OpenStreetMap when Viator has nothing — see
-// server.js buildActivitiesForSettings) ----------
-function realActivityCard(a){
-  const img = a.image ? `<img src="${a.image}" alt="" loading="lazy">` : '';
-  const rating = (a.rating != null) ? `<div class="rating">★ ${a.rating.toFixed ? a.rating.toFixed(1) : a.rating}${a.reviewCount ? ' (' + a.reviewCount + ')' : ''}</div>` : '';
-  const price = (a.price != null) ? `<div class="activity-price">From ${a.currency === 'AUD' ? 'A$' : a.currency + ' '}${Math.round(a.price)}</div>` : '';
-  const duration = a.duration ? `<div class="duration">${a.duration}</div>` : '';
-  return `
-    <div class="activity-card real">
-      ${img}
-      <div class="body">
-        <div class="title">${a.title}</div>
-        ${rating}
-        ${price}
-        ${duration}
-        <a class="book" href="${a.bookUrl}" target="_blank" rel="noopener sponsored">🎟️ Book this activity →</a>
-      </div>
-    </div>
-  `;
-}
-
-function freeActivityCard(a){
-  return `
-    <div class="activity-card free">
-      <div class="cat">${a.category} · Free</div>
-      <div class="title">${a.title}</div>
-      <div class="desc">A free public spot near your hometown — worth a look on your next break.</div>
-      <a class="book" href="${a.mapUrl}" target="_blank" rel="noopener">📍 View on Google Maps →</a>
-    </div>
-  `;
-}
-
-async function renderActivities(hometown){
-  const town = hometown || 'your hometown';
-  document.getElementById('hometownLabel').textContent = town;
-  const grid = document.getElementById('activitiesGrid');
-
-  if(!hometown){
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Add your hometown in Setup to see things to do here.</div>';
-    return;
-  }
-
-  grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Looking up things to do…</div>';
-
-  let result;
-  try{
-    result = await api('/api/activities');
-  }catch(e){
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Could not load activities: ' + e.message + '</div>';
-    return;
-  }
-
-  if(result.source === 'real' && result.activities.length){
-    grid.innerHTML = result.activities.map(realActivityCard).join('');
-  }else if(result.source === 'free' && result.activities.length){
-    grid.innerHTML = `<div class="disclaimer" style="grid-column:1/-1;">No bookable activities for ${town} yet, so here are some free spots nearby instead.</div>` +
-      result.activities.map(freeActivityCard).join('');
-  }else{
-    grid.innerHTML = `<div class="disclaimer" style="grid-column:1/-1;">Nothing found for ${town} yet — bookable or free — worth checking back later.</div>`;
-  }
 }
 
 // ---------- init ----------

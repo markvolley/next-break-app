@@ -303,7 +303,11 @@ async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
     }
   }
 
-  const deals = selectDeals(cached.fares, { limit: 3, profile });
+  // Guarantees a domestic/SEA/international mix first, then backfills with
+  // any other real fares found (see selectDeals) up to this cap — raised
+  // from the old fixed 3-slot limit so a break with plenty of real options
+  // actually shows them instead of throwing extras away.
+  const deals = selectDeals(cached.fares, { limit: 6, profile });
   await attachWeather(deals);
   return {
     source: cached.fares.length ? 'real' : 'no-results',

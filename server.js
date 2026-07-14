@@ -20,6 +20,7 @@ import {
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
+import { findFreeActivities } from './lib/activities.js';
 import { getWeatherForDate } from './lib/weather.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
@@ -317,24 +318,65 @@ async function attachWeather(deals) {
   }));
 }
 
-// ---------- activities for hometown (real, via Viator — no fake listings) ----------
+// ---------- activities for hometown ----------
+// Two tiers, both real data, never fabricated: bookable activities via
+// Viator when it's configured and has something for this hometown, falling
+// back to free public spots (parks, beaches, lookouts, etc.) sourced live
+// from OpenStreetMap (see lib/activities.js) when Viator has nothing —
+// whether that's because it isn't configured at all, or just doesn't cover
+// this particular hometown. The app's whole pitch is "things to do on your
+// break," so an empty section here undercuts that even when there's
+// nothing to book.
+const FREE_ACTIVITIES_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days — real-world parks/beaches don't move
+const freeActivitiesCache = new Map(); // hometown (lowercased) -> { activities, fetchedAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of freeActivitiesCache) {
+    if (now - entry.fetchedAt > FREE_ACTIVITIES_CACHE_TTL_MS) freeActivitiesCache.delete(key);
+  }
+}, 24 * 60 * 60 * 1000).unref();
+
+async function buildFreeActivitiesForSettings(settings) {
+  const key = settings.hometown.trim().toLowerCase();
+  const cached = freeActivitiesCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < FREE_ACTIVITIES_CACHE_TTL_MS) {
+    return cached.activities;
+  }
+  let activities = [];
+  try {
+    activities = await findFreeActivities({ hometown: settings.hometown });
+  } catch (e) {
+    console.error('[activities] findFreeActivities threw:', e.message);
+  }
+  freeActivitiesCache.set(key, { activities, fetchedAt: Date.now() });
+  return activities;
+}
+
 async function buildActivitiesForSettings(settings) {
-  if (!VIATOR_API_KEY || !settings.hometown) {
+  if (!settings.hometown) {
     return { source: 'not-configured', activities: [] };
   }
-  try {
-    const real = await findActivities({
-      apiKey: VIATOR_API_KEY,
-      pid: VIATOR_PID,
-      mcid: VIATOR_MCID,
-      hometown: settings.hometown,
-      currency: settings.currency || 'AUD'
-    });
-    return { source: real.length ? 'real' : 'no-results', activities: real };
-  } catch (e) {
-    console.error('[viator] findActivities threw:', e.message);
-    return { source: 'no-results', activities: [] };
+
+  if (VIATOR_API_KEY) {
+    try {
+      const real = await findActivities({
+        apiKey: VIATOR_API_KEY,
+        pid: VIATOR_PID,
+        mcid: VIATOR_MCID,
+        hometown: settings.hometown,
+        currency: settings.currency || 'AUD'
+      });
+      if (real.length) return { source: 'real', activities: real };
+    } catch (e) {
+      console.error('[viator] findActivities threw:', e.message);
+    }
   }
+
+  // Viator's not configured, or came back empty — try free public spots
+  // near the hometown before giving up entirely.
+  const free = await buildFreeActivitiesForSettings(settings);
+  return { source: free.length ? 'free' : 'no-results', activities: free };
 }
 
 // ---------- auth ----------

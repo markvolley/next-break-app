@@ -155,6 +155,13 @@
     .account-promo .btn{flex:1;}
   }
 
+  /* ---------- interests (personalisation, logged-in users) ---------- */
+  .interest-chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px;}
+  .interest-chip{background:rgba(244,238,227,0.07);border:1px solid rgba(244,238,227,0.2);color:var(--muted);font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--radius-pill);cursor:pointer;transition:background .15s,border-color .15s,color .15s;}
+  .interest-chip:hover{border-color:var(--accent2);color:var(--text);}
+  .interest-chip.active{background:var(--accent2);border-color:var(--accent2);color:#101820;}
+  .interests-hint{color:var(--muted);font-size:12.5px;margin:0 0 4px;}
+
   /* ---------- profile ---------- */
   .avatar-row{display:flex;align-items:center;gap:18px;margin-bottom:6px;flex-wrap:wrap;}
   .avatar-preview{width:88px;height:88px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:var(--muted);overflow:hidden;flex-shrink:0;}
@@ -423,6 +430,7 @@
     </div>
 
     <div id="accountPromo" class="account-promo" style="display:none;"></div>
+    <div id="interestsPromo" class="account-promo" style="display:none;"></div>
 
     <div class="panel">
       <div class="break-select-row">
@@ -460,6 +468,16 @@
       <div class="auth-error" id="profileError"></div>
       <div style="margin-top:20px;">
         <button class="btn btn-block-mobile" id="saveProfileBtn" onclick="saveProfile()">Save profile</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Trip interests</h2>
+      <p class="interests-hint">Tell us what kind of trips you're into and we'll lean toward matching deals when the price is close — never a pricier fare just because it fits, we'll only ever nudge among deals within a similar price.</p>
+      <div class="interest-chips" id="interestChips"></div>
+      <div class="auth-error" id="interestsError"></div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-block-mobile" id="saveInterestsBtn" onclick="saveInterests()">Save interests</button>
       </div>
     </div>
   </div>
@@ -810,6 +828,22 @@ async function fillProfileForm(){
   document.getElementById('profileDisplayName').value = profile.displayName || '';
   document.getElementById('profileEmail').value = profile.email;
   renderAvatarPreview(profile.avatarUrl, profile.displayName, profile.email);
+
+  document.getElementById('interestsError').textContent = '';
+  try{
+    const settings = await api('/api/settings');
+    selectedInterests = new Set(settings.interests || []);
+  }catch(e){
+    selectedInterests = new Set();
+  }
+  renderProfileInterestChips();
+}
+
+function renderProfileInterestChips(){
+  renderInterestChips('interestChips', selectedInterests, key => {
+    selectedInterests.has(key) ? selectedInterests.delete(key) : selectedInterests.add(key);
+    renderProfileInterestChips();
+  });
 }
 
 function handleAvatarFileChange(input){
@@ -1071,6 +1105,102 @@ let currentPattern = null;
 const dealsCache = {};   // breakKey -> {source, currencySymbol, deals}
 const dealsLoading = {}; // breakKey -> true while a fetch is in flight
 
+// ---------- trip interests (personalisation, logged-in users only) ----------
+// Keys here must match lib/travelpayouts.js's INTEREST_TAGS exactly — the
+// server filters out anything else, so a mismatch just silently drops a tag.
+const INTEREST_TAGS = [
+  { key: 'beach', label: 'Beach & islands' },
+  { key: 'city', label: 'City breaks' },
+  { key: 'adventure', label: 'Adventure & outdoors' },
+  { key: 'nature', label: 'Nature & wildlife' },
+  { key: 'food', label: 'Food & culture' },
+  { key: 'relax', label: 'Relaxation' },
+  { key: 'nightlife', label: 'Nightlife' }
+];
+let selectedInterests = new Set();
+
+function renderInterestChips(containerId, selectedSet, onToggle){
+  document.getElementById(containerId).innerHTML = INTEREST_TAGS.map(t =>
+    `<button type="button" class="interest-chip${selectedSet.has(t.key) ? ' active' : ''}" data-key="${t.key}">${t.label}</button>`
+  ).join('');
+  document.querySelectorAll(`#${containerId} .interest-chip`).forEach(btn => {
+    btn.addEventListener('click', () => onToggle(btn.dataset.key));
+  });
+}
+
+async function saveInterests(){
+  const btn = document.getElementById('saveInterestsBtn');
+  const errEl = document.getElementById('interestsError');
+  errEl.textContent = '';
+  setBtnBusy(btn, true, 'Saving…');
+  try{
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ interests: [...selectedInterests] }) });
+    showBanner('success', 'Interests saved — we\'ll start factoring these into your deals.');
+  }catch(e){
+    errEl.textContent = 'Could not save: ' + e.message;
+  }finally{
+    setBtnBusy(btn, false);
+  }
+}
+
+// One-time dashboard nudge for logged-in users who haven't set any
+// interests yet — same dismiss-and-remember pattern as the account promo.
+const INTERESTS_PROMO_DISMISSED_KEY = 'nextbreak_interests_promo_dismissed';
+let dashboardInterests = new Set();
+
+function renderInterestsPromo(hasInterests){
+  const el = document.getElementById('interestsPromo');
+  const dismissed = localStorage.getItem(INTERESTS_PROMO_DISMISSED_KEY) === '1';
+  if(!authState.loggedIn || hasInterests || dismissed){
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="content" style="min-width:100%;">
+      <h3>What kind of trips are you into?</h3>
+      <p class="interests-hint" style="margin:0 0 4px;">Pick a few — we'll lean toward matching deals when the price is close.</p>
+      <div class="interest-chips" id="dashboardInterestChips"></div>
+    </div>
+    <div class="actions" style="width:100%;justify-content:flex-end;margin-top:12px;">
+      <button class="btn small" onclick="saveDashboardInterests()">Save</button>
+      <button class="dismiss" onclick="dismissInterestsPromo()" title="Not now" aria-label="Dismiss">✕</button>
+    </div>
+  `;
+  dashboardInterests = new Set();
+  renderDashboardInterestChips();
+}
+
+function renderDashboardInterestChips(){
+  renderInterestChips('dashboardInterestChips', dashboardInterests, key => {
+    dashboardInterests.has(key) ? dashboardInterests.delete(key) : dashboardInterests.add(key);
+    renderDashboardInterestChips();
+  });
+}
+
+async function saveDashboardInterests(){
+  if(!dashboardInterests.size) return dismissInterestsPromo();
+  try{
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ interests: [...dashboardInterests] }) });
+  }catch(e){ /* fail quietly here — Profile still lets them retry */ }
+  localStorage.setItem(INTERESTS_PROMO_DISMISSED_KEY, '1');
+  document.getElementById('interestsPromo').style.display = 'none';
+}
+
+function dismissInterestsPromo(){
+  localStorage.setItem(INTERESTS_PROMO_DISMISSED_KEY, '1');
+  document.getElementById('interestsPromo').style.display = 'none';
+}
+
+// Fire-and-forget: nudges this destination's tags up in the user's implicit
+// affinity profile. Logged-in only (see server.js handleDealClick) — the
+// link still opens normally in a new tab either way, this never blocks or
+// delays the actual booking click.
+function trackDealClick(iata){
+  if(!authState.loggedIn) return;
+  api('/api/deal-click', { method: 'POST', body: JSON.stringify({ iata }) }).catch(() => {});
+}
+
 function fmtDateTime(isoWithOffset){
   const d = new Date(isoWithOffset);
   return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
@@ -1135,6 +1265,7 @@ async function renderDashboard(){
   realPricesAvailable = !!data.realPricesAvailable;
   currentRosterMode = data.rosterMode || 'pattern';
   currentPattern = data.pattern || null;
+  renderInterestsPromo(!!(data.interests && data.interests.length));
 
   document.getElementById('sumHometown').textContent = data.hometown || '—';
   document.getElementById('sumRoster').textContent = currentBreaks.length + ' upcoming break(s)';
@@ -1440,17 +1571,21 @@ function dealsMarkup(result){
       <div class="deal-card-body">
         <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
         <div class="blurb">${d.blurb}</div>
-        <a class="book-btn" href="${d.bookUrl}" target="_blank" rel="noopener sponsored">✈️ Book this fare →</a>
+        <a class="book-btn" href="${d.bookUrl}" target="_blank" rel="noopener sponsored" onclick="trackDealClick('${d.iata}')">✈️ Book this fare →</a>
       </div>
     </div>
   `;
   }).join('');
 
   const refreshed = fmtRefreshed(result.fetchedAt);
+  const tags = [];
+  if(refreshed) tags.push(`<div class="refreshed-tag">Updated ${refreshed}<span class="info-icon" tabindex="0">i<span class="info-tooltip">We refresh cached prices for each break once a day, rather than looking them up on every visit — so you see consistent prices and we don't hammer the flight search API.</span></span></div>`);
+  if(result.personalized) tags.push(`<div class="refreshed-tag">Picked for you<span class="info-icon" tabindex="0">i<span class="info-tooltip">Based on the trip interests you've set (and what you've booked before), we'll lean toward a matching deal when it's priced close to the cheapest option — never a pricier one just because it fits.</span></span></div>`);
+
   return `
     <div class="disclaimer">
       Prices are from recent searches, not live quotes — confirm the final price before booking.
-      ${refreshed ? `<div class="refreshed-tag">Updated ${refreshed}<span class="info-icon" tabindex="0">i<span class="info-tooltip">We refresh cached prices for each break once a day, rather than looking them up on every visit — so you see consistent prices and we don't hammer the flight search API.</span></span></div>` : ''}
+      ${tags.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${tags.join('')}</div>` : ''}
     </div>
     <div class="deals-grid">${dealsHtml}</div>
   `;

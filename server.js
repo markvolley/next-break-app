@@ -18,7 +18,7 @@ import {
   setAccountProfile, _dataFilePath
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
-import { findRealDeals } from './lib/travelpayouts.js';
+import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
@@ -221,14 +221,20 @@ function presentBreak(brk, settings) {
 // search link — a made-up price that doesn't earn commission when clicked
 // isn't more useful to the user than an honest "nothing cached yet."
 //
-// Real fares are cached in memory per (origin, break, currency) for 24
-// hours — the same break shows the same deals all day rather than firing a
-// fresh batch of Travelpayouts lookups on every dashboard load, and the
-// deals refresh automatically once the cache entry goes stale. Failed
-// lookups are never cached, so a transient error gets retried on the very
-// next request instead of showing "no deals" for a full day.
+// The *fetch* (querying Travelpayouts across every candidate destination)
+// is cached in memory per (origin, break, currency) for 24 hours — that's
+// the expensive, identical-for-everyone part, so the same break doesn't
+// trigger a fresh batch of Travelpayouts lookups on every dashboard load
+// from every user. Failed lookups are never cached, so a transient error
+// gets retried on the very next request instead of showing "no deals" for
+// a full day.
+//
+// *Selecting* which 3 of those fares to actually show, on the other hand,
+// is NOT cached — it's cheap (just sorting/filtering an already-fetched
+// list) and depends on the viewer's own preferences (see selectDeals in
+// lib/travelpayouts.js), so it's recomputed fresh per request.
 const DEALS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-const dealsCache = new Map(); // `${origin}|${breakKey}|${currency}` -> { data, fetchedAt }
+const dealsCache = new Map(); // `${origin}|${breakKey}|${currency}` -> { fares, fetchedAt }
 
 setInterval(() => {
   const now = Date.now();
@@ -237,7 +243,7 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000).unref();
 
-async function buildDealsForBreak(brk, settings) {
+async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
   const currency = (settings.currency || 'AUD').toLowerCase();
 
   if (!TRAVELPAYOUTS_TOKEN || !settings.originAirport) {
@@ -246,27 +252,31 @@ async function buildDealsForBreak(brk, settings) {
 
   const origin = settings.originAirport.toUpperCase();
   const cacheKey = `${origin}|${brk.key}|${currency}`;
-  const cached = dealsCache.get(cacheKey);
-  if (cached && Date.now() - cached.fetchedAt < DEALS_CACHE_TTL_MS) {
-    return { ...cached.data, fetchedAt: new Date(cached.fetchedAt).toISOString() };
+  let cached = dealsCache.get(cacheKey);
+
+  if (!cached || Date.now() - cached.fetchedAt >= DEALS_CACHE_TTL_MS) {
+    try {
+      const fares = await fetchAllRealFares({
+        token: TRAVELPAYOUTS_TOKEN,
+        marker: TRAVELPAYOUTS_MARKER,
+        origin,
+        currency,
+        brk
+      });
+      cached = { fares, fetchedAt: Date.now() };
+      dealsCache.set(cacheKey, cached);
+    } catch (e) {
+      console.error('[travelpayouts] fetchAllRealFares threw:', e.message);
+      return { source: 'no-results', deals: [], fetchedAt: null };
+    }
   }
 
-  try {
-    const real = await findRealDeals({
-      token: TRAVELPAYOUTS_TOKEN,
-      marker: TRAVELPAYOUTS_MARKER,
-      origin,
-      currency,
-      brk
-    });
-    const fetchedAt = Date.now();
-    const data = { source: real.length ? 'real' : 'no-results', deals: real };
-    dealsCache.set(cacheKey, { data, fetchedAt });
-    return { ...data, fetchedAt: new Date(fetchedAt).toISOString() };
-  } catch (e) {
-    console.error('[travelpayouts] findRealDeals threw:', e.message);
-    return { source: 'no-results', deals: [], fetchedAt: null };
-  }
+  const deals = selectDeals(cached.fares, { limit: 3, profile });
+  return {
+    source: cached.fares.length ? 'real' : 'no-results',
+    deals,
+    fetchedAt: new Date(cached.fetchedAt).toISOString()
+  };
 }
 
 // ---------- activities for hometown (real, via Viator — no fake listings) ----------
@@ -507,10 +517,15 @@ async function handleGetSettings(req, res, userId) {
 
 async function handlePutSettings(req, res, userId) {
   const body = await readJsonBody(req);
-  const allowed = ['hometown', 'originAirport', 'currency', 'rosterMode', 'pattern', 'manualBreaks'];
+  const allowed = ['hometown', 'originAirport', 'currency', 'rosterMode', 'pattern', 'manualBreaks', 'interests'];
   const patch = {};
   for (const k of allowed) if (k in body) patch[k] = body[k];
   if (typeof patch.originAirport === 'string') patch.originAirport = patch.originAirport.trim().toUpperCase();
+  if (Array.isArray(patch.interests)) {
+    // Only keep known tags — junk from a stale client or a hand-crafted
+    // request shouldn't end up steering deal selection.
+    patch.interests = patch.interests.filter(t => INTEREST_TAGS.includes(t));
+  }
   const updated = saveSettings(userId, patch);
   sendJson(res, 200, updated);
 }
@@ -524,8 +539,23 @@ async function handleGetBreaks(req, res, userId) {
     hometown: settings.hometown || '',
     realPricesAvailable: !!(TRAVELPAYOUTS_TOKEN && settings.originAirport),
     rosterMode: settings.rosterMode || 'pattern',
-    pattern: settings.pattern || null
+    pattern: settings.pattern || null,
+    interests: settings.interests || []
   });
+}
+
+// Personalisation only applies for a real logged-in session, not the
+// anonymous per-device id — "learn what a logged-in user likes" was the
+// ask, and it also means a signed-out visitor never gets nudged off the
+// plain cheapest-fare result by leftover local data.
+function buildPersonalizationProfile(req, settings) {
+  const cookies = parseCookies(req);
+  const loggedIn = !!getSessionEmail(cookies[SESSION_COOKIE]);
+  if (!loggedIn) return null;
+  const interests = settings.interests || [];
+  const affinity = settings.dealAffinity || {};
+  if (!interests.length && !Object.keys(affinity).length) return null;
+  return { interests, affinity };
 }
 
 async function handleGetDeals(req, res, userId, query) {
@@ -537,8 +567,30 @@ async function handleGetDeals(req, res, userId, query) {
   const brk = breaks.find(b => b.key === breakKey);
   if (!brk) return sendJson(res, 404, { error: 'That break no longer matches your current roster.' });
 
-  const { source, deals, fetchedAt } = await buildDealsForBreak(brk, settings);
-  sendJson(res, 200, { breakKey, source, currencySymbol: CURRENCY_SYMBOLS[settings.currency] || 'A$', deals, fetchedAt });
+  const profile = buildPersonalizationProfile(req, settings);
+  const { source, deals, fetchedAt } = await buildDealsForBreak(brk, settings, { profile });
+  sendJson(res, 200, { breakKey, source, currencySymbol: CURRENCY_SYMBOLS[settings.currency] || 'A$', deals, fetchedAt, personalized: !!profile });
+}
+
+// ---------- implicit learning: which real fares a logged-in user actually
+// clicks "Book this fare" on. A click nudges up the affinity score for
+// every tag on that destination (see selectDeals/pickBest in
+// lib/travelpayouts.js) — capped per-tag influence there, so this can't
+// snowball into always showing the same handful of places. Logged-in only,
+// same reasoning as buildPersonalizationProfile above.
+async function handleDealClick(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+
+  const body = await readJsonBody(req);
+  const dest = REAL_DESTINATIONS.find(d => d.iata === body.iata);
+  if (!dest) return sendJson(res, 400, { error: 'Unknown destination.' });
+
+  const settings = getSettings(email);
+  const affinity = { ...(settings.dealAffinity || {}) };
+  for (const tag of dest.tags || []) affinity[tag] = (affinity[tag] || 0) + 1;
+  saveSettings(email, { dealAffinity: affinity });
+  sendJson(res, 200, { ok: true });
 }
 
 async function handleGetActivities(req, res, userId) {
@@ -680,6 +732,7 @@ const server = http.createServer(async (req, res) => {
       // return their own 401 rather than the generic 400 below.
       if (pathname === '/api/profile' && req.method === 'GET') return await handleGetProfile(req, res);
       if (pathname === '/api/profile' && req.method === 'PUT') return await handlePutProfile(req, res);
+      if (pathname === '/api/deal-click' && req.method === 'POST') return await handleDealClick(req, res);
 
       const userId = maybeUserId;
       if (!userId) return sendJson(res, 400, { error: 'Missing X-User-Id header.' });

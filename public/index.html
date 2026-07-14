@@ -112,6 +112,14 @@
   .deal-card .blurb{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4;}
   .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);margin-top:auto;box-shadow:0 4px 14px rgba(245,176,76,0.3);}
   .deal-card .book-btn:hover{background:var(--text);}
+  .events-section{margin-top:18px;padding-top:18px;border-top:1px solid var(--border);}
+  .events-section h3{margin:0 0 4px;font-size:14px;font-weight:700;}
+  .event-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .event-row:last-child{border-bottom:none;}
+  .event-row .info{min-width:0;flex:1;}
+  .event-row .title{font-weight:700;font-size:13.5px;}
+  .event-row .meta{color:var(--muted);font-size:12px;margin-top:2px;}
+  .event-row .price{color:var(--accent2);font-weight:700;font-size:12.5px;white-space:nowrap;}
   .links-row{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;}
   .links-row a{font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600;}
   .links-row a:hover{text-decoration:underline;}
@@ -1240,6 +1248,8 @@ let currentRosterMode = 'pattern';
 let currentPattern = null;
 const dealsCache = {};   // breakKey -> {source, currencySymbol, deals}
 const dealsLoading = {}; // breakKey -> true while a fetch is in flight
+const eventsCache = {};   // breakKey -> {source, hometown, events}
+const eventsLoading = {}; // breakKey -> true while a fetch is in flight
 
 // ---------- trip interests (personalisation, logged-in users only) ----------
 // Keys here must match lib/travelpayouts.js's INTEREST_TAGS exactly — the
@@ -1557,7 +1567,10 @@ async function renderDashboard(){
   if(openBreakKeys.size === 0) openBreakKeys.add(currentBreaks[0].key);
 
   renderBreaksList();
-  openBreakKeys.forEach(key => { if(!dealsCache[key]) loadDeals(key); });
+  openBreakKeys.forEach(key => {
+    if(!dealsCache[key]) loadDeals(key);
+    if(!eventsCache[key]) loadEvents(key);
+  });
   renderActivities(data.hometown);
 }
 
@@ -1567,6 +1580,7 @@ function toggleBreak(key){
   }else{
     openBreakKeys.add(key);
     if(!dealsCache[key]) loadDeals(key);
+    if(!eventsCache[key]) loadEvents(key);
   }
   renderBreaksList();
 }
@@ -1581,6 +1595,25 @@ async function loadDeals(key){
     dealsCache[key] = { error: e.message };
   }
   dealsLoading[key] = false;
+  if(openBreakKeys.has(key)) renderBreaksList();
+}
+
+// Ticketmaster events near hometown for this break — separate cache from
+// dealsCache since it's a distinct, independent lookup (and one failing
+// shouldn't affect the other rendering). Silently shows nothing if
+// TICKETMASTER_API_KEY isn't configured server-side (source:
+// 'not-configured') rather than announcing a feature the operator hasn't
+// set up yet.
+async function loadEvents(key){
+  if(eventsLoading[key]) return;
+  eventsLoading[key] = true;
+  try{
+    const result = await api('/api/events?breakKey=' + encodeURIComponent(key));
+    eventsCache[key] = result;
+  }catch(e){
+    eventsCache[key] = { error: e.message, events: [] };
+  }
+  eventsLoading[key] = false;
   if(openBreakKeys.has(key)) renderBreaksList();
 }
 
@@ -1672,6 +1705,10 @@ function renderBreaksList(){
       }else{
         bodyHtml = dealsMarkup(cached);
       }
+      // Events are additive, not load-bearing — a missing/loading/errored
+      // result just means the section doesn't appear, same treatment as
+      // "not configured" (no error banner cluttering the deals view).
+      bodyHtml += eventsMarkup(eventsCache[b.key]);
     }
     return `
       <div class="accordion-item${isOpen ? ' open' : ''}">
@@ -1918,6 +1955,55 @@ function dealsMarkup(result){
     </div>
     <div class="deals-grid">${dealsHtml}</div>
   `;
+}
+
+// ---------- real ticketed events near hometown, during this break (Ticketmaster) ----------
+// Additive only — renders nothing at all if the operator hasn't configured
+// TICKETMASTER_API_KEY (source: 'not-configured'), if the fetch is still
+// in flight or failed, or if there's genuinely nothing on. Never shows an
+// empty-state message here the way "Things to do" does, since this sits
+// inside an already-busy accordion body and a missing bonus section isn't
+// worth announcing.
+function eventsMarkup(result){
+  if(!result || result.error || !result.events || !result.events.length) return '';
+  return `
+    <div class="events-section">
+      <h3>🎟️ On near home during this break</h3>
+      ${result.events.map(eventRow).join('')}
+    </div>
+  `;
+}
+
+function eventRow(e){
+  const dateLabel = fmtEventDateTime(e.localDate, e.localTime);
+  const metaParts = [dateLabel];
+  if(e.venueName) metaParts.push(e.venueName);
+  const priceLabel = (e.priceMin != null)
+    ? `${e.currency || ''} ${Math.round(e.priceMin)}${(e.priceMax != null && e.priceMax !== e.priceMin) ? '–' + Math.round(e.priceMax) : ''}`
+    : '';
+  return `
+    <div class="event-row">
+      <div class="info">
+        <div class="title">${e.title}</div>
+        <div class="meta">${metaParts.join(' · ')}</div>
+      </div>
+      ${priceLabel ? `<div class="price">${priceLabel}</div>` : ''}
+      <a class="btn secondary small" href="${e.url}" target="_blank" rel="noopener sponsored">Tickets →</a>
+    </div>
+  `;
+}
+
+// "Fri, 3 Aug · 7:30 pm" — built from the event's own local date/time
+// fields directly (no Date-object timezone reparsing needed; see
+// lib/ticketmaster.js for why those are already correct as plain strings).
+function fmtEventDateTime(localDate, localTime){
+  const [y, m, d] = localDate.split('-').map(Number);
+  const dateOnly = new Date(y, m - 1, d);
+  const dateStr = dateOnly.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  if(!localTime) return dateStr;
+  const [hh, mm] = localTime.split(':').map(Number);
+  const withTime = new Date(y, m - 1, d, hh, mm);
+  return dateStr + ' · ' + withTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 // ---------- things to do (real Viator activities, falling back to real free

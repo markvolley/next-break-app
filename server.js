@@ -10,7 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-import { computeUpcomingBreaks, breakStatus, toISO, CURRENCY_SYMBOLS } from './lib/deals.js';
+import { computeUpcomingBreaks, breakStatus, toISO, addDays, CURRENCY_SYMBOLS } from './lib/deals.js';
 import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
@@ -21,7 +21,8 @@ import {
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
-import { findFreeActivities } from './lib/activities.js';
+import { findFreeActivities, geocodeHometown } from './lib/activities.js';
+import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
 import { getWeatherForDate } from './lib/weather.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, createCalendarToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
@@ -51,6 +52,20 @@ const TRAVELPAYOUTS_MARKER = process.env.TRAVELPAYOUTS_MARKER || '';
 const VIATOR_API_KEY = process.env.VIATOR_API_KEY || '';
 const VIATOR_PID = process.env.VIATOR_PID || '';
 const VIATOR_MCID = process.env.VIATOR_MCID || '';
+
+// Ticketmaster Discovery API — free, self-serve, no approval wait (unlike
+// their separate commission-earning Affiliate Program). Get one at
+// https://developer.ticketmaster.com. Shows real ticketed events (gigs,
+// sport, theatre) near a user's hometown during each specific break.
+const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY || '';
+
+// Operator-level, same pattern as TRAVELPAYOUTS_MARKER/VIATOR_PID — once
+// the Ticketmaster Affiliate Program application (via Impact) is approved,
+// paste the base tracking link Impact's dashboard gives you here (ending
+// in "?u=", see buildEventUrl in lib/ticketmaster.js for the full format).
+// Leave blank and event links go to the plain, non-commission Ticketmaster
+// page instead — still real, working links either way.
+const TICKETMASTER_AFFILIATE_LINK_PREFIX = process.env.TICKETMASTER_AFFILIATE_LINK_PREFIX || '';
 
 // Google Sign-In client ID. This is NOT a secret — it's meant to be public
 // and embedded in frontend JS (that's how Google Identity Services works),
@@ -398,6 +413,113 @@ async function buildActivitiesForSettings(settings) {
   // near the hometown before giving up entirely.
   const free = await buildFreeActivitiesForSettings(settings);
   return { source: free.length ? 'free' : 'no-results', activities: free };
+}
+
+// ---------- ticketed events near hometown, during a specific break ----------
+// Separate cache from freeActivitiesCache above since this is keyed by
+// hometown *and* break (event listings are date-bound, not just
+// location-bound) — a park doesn't care what week it is, but a concert
+// does. Same negative-cache lesson learned from the free-activities bug:
+// an empty result is cached far more briefly than a real one, so a
+// one-off API hiccup or a genuinely quiet week both self-correct quickly
+// rather than one looking permanently broken.
+const EVENTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — long enough to respect the API's rate limit, short enough that new listings show up promptly
+const EVENTS_EMPTY_TTL_MS = 60 * 60 * 1000; // 1h
+const eventsCache = new Map(); // `${hometown}|${breakKey}` -> { events, fetchedAt }
+
+// Hometown coordinates don't change, so this can be cached far longer than
+// the events themselves — also means the free-activities feature and this
+// one could eventually share one geocode cache, but kept separate for now
+// to avoid coupling two otherwise-independent features.
+const GEOCODE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const GEOCODE_EMPTY_TTL_MS = 60 * 60 * 1000; // 1h — same negative-cache reasoning as above
+const eventsGeocodeCache = new Map(); // hometown (lowercased) -> { coords, fetchedAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of eventsCache) {
+    const ttl = entry.events.length ? EVENTS_CACHE_TTL_MS : EVENTS_EMPTY_TTL_MS;
+    if (now - entry.fetchedAt > ttl) eventsCache.delete(key);
+  }
+  for (const [key, entry] of eventsGeocodeCache) {
+    const ttl = entry.coords ? GEOCODE_CACHE_TTL_MS : GEOCODE_EMPTY_TTL_MS;
+    if (now - entry.fetchedAt > ttl) eventsGeocodeCache.delete(key);
+  }
+}, 60 * 60 * 1000).unref();
+
+async function getEventsGeocode(hometown) {
+  const key = hometown.trim().toLowerCase();
+  const cached = eventsGeocodeCache.get(key);
+  if (cached) {
+    const ttl = cached.coords ? GEOCODE_CACHE_TTL_MS : GEOCODE_EMPTY_TTL_MS;
+    if (Date.now() - cached.fetchedAt < ttl) return cached.coords;
+  }
+  let coords = null;
+  try {
+    coords = await geocodeHometown({ hometown });
+  } catch (e) {
+    console.error('[ticketmaster] geocode threw:', e.message);
+  }
+  eventsGeocodeCache.set(key, { coords, fetchedAt: Date.now() });
+  return coords;
+}
+
+// Ticketmaster's date filters are UTC and this app only knows a hometown's
+// *local* calendar dates (no per-city timezone lookup) — rather than guess
+// at a UTC offset, the query window is widened by a day on each side and
+// results are filtered precisely afterward using each event's own
+// dates.start.localDate (already in the venue's local time, no timezone
+// math needed — same trick fitsBreak() in lib/travelpayouts.js uses for
+// flight dates). This can never show an event outside the break; at worst
+// it queries slightly more than needed.
+async function buildEventsForBreak(brk, settings) {
+  if (!TICKETMASTER_API_KEY || !settings.hometown) {
+    return { source: 'not-configured', events: [] };
+  }
+
+  const cacheKey = `${settings.hometown.trim().toLowerCase()}|${brk.key}`;
+  const cached = eventsCache.get(cacheKey);
+  if (cached) {
+    const ttl = cached.events.length ? EVENTS_CACHE_TTL_MS : EVENTS_EMPTY_TTL_MS;
+    if (Date.now() - cached.fetchedAt < ttl) {
+      return { source: cached.events.length ? 'real' : 'no-results', events: cached.events };
+    }
+  }
+
+  const coords = await getEventsGeocode(settings.hometown);
+  if (!coords) {
+    eventsCache.set(cacheKey, { events: [], fetchedAt: Date.now() });
+    return { source: 'no-results', events: [] };
+  }
+
+  const startDateTime = `${toISO(addDays(brk.start, -1))}T00:00:00Z`;
+  const endDateTime = `${toISO(addDays(brk.end, 1))}T23:59:59Z`;
+
+  let found = [];
+  try {
+    found = await findEvents({
+      apiKey: TICKETMASTER_API_KEY,
+      lat: coords.lat,
+      lon: coords.lon,
+      startDateTime,
+      endDateTime
+    });
+  } catch (e) {
+    console.error('[ticketmaster] findEvents threw:', e.message);
+  }
+
+  const breakStart = toISO(brk.start);
+  const breakEnd = toISO(brk.end);
+  const events = found
+    .filter(e => e.localDate >= breakStart && e.localDate <= breakEnd)
+    // Wraps each event's plain Ticketmaster URL in the Impact deep-link
+    // format if TICKETMASTER_AFFILIATE_LINK_PREFIX is configured — see
+    // buildEventUrl in lib/ticketmaster.js. No-ops (returns the plain URL
+    // unchanged) until the Affiliate Program application is approved.
+    .map(e => ({ ...e, url: buildEventUrl(e.url, TICKETMASTER_AFFILIATE_LINK_PREFIX) }));
+
+  eventsCache.set(cacheKey, { events, fetchedAt: Date.now() });
+  return { source: events.length ? 'real' : 'no-results', events };
 }
 
 // ---------- auth ----------
@@ -751,6 +873,19 @@ async function handleGetActivities(req, res, userId) {
   sendJson(res, 200, { source, hometown: settings.hometown || '', activities });
 }
 
+async function handleGetEvents(req, res, userId, query) {
+  const breakKey = query.get('breakKey');
+  if (!breakKey) return sendJson(res, 400, { error: 'breakKey is required' });
+
+  const settings = getSettings(userId);
+  const breaks = computeUpcomingBreaks(settings);
+  const brk = breaks.find(b => b.key === breakKey);
+  if (!brk) return sendJson(res, 404, { error: 'That break no longer matches your current roster.' });
+
+  const { source, events } = await buildEventsForBreak(brk, settings);
+  sendJson(res, 200, { breakKey, source, hometown: settings.hometown || '', events });
+}
+
 // ---------- personal stats ----------
 // Logged-in only, same reasoning as personalisation/deal-click tracking
 // above — an anonymous device id has no durable click history worth
@@ -1014,6 +1149,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/breaks' && req.method === 'GET') return await handleGetBreaks(req, res, userId);
       if (pathname === '/api/deals' && req.method === 'GET') return await handleGetDeals(req, res, userId, searchParams);
       if (pathname === '/api/activities' && req.method === 'GET') return await handleGetActivities(req, res, userId);
+      if (pathname === '/api/events' && req.method === 'GET') return await handleGetEvents(req, res, userId, searchParams);
       if (pathname === '/api/checkout' && req.method === 'POST') return await handleCheckout(req, res, userId);
       if (pathname === '/api/checkout/confirm' && req.method === 'GET') return await handleConfirmCheckout(req, res, userId, searchParams);
       if (pathname === '/api/calendar-token' && req.method === 'GET') return await handleGetCalendarToken(req, res, userId);
@@ -1046,6 +1182,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Next Break server running at http://localhost:${PORT}`);
     console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
     console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
+    console.log(`Ticketmaster events: ${TICKETMASTER_API_KEY ? 'configured' : 'NOT configured (set TICKETMASTER_API_KEY in .env — no events section will show until then)'}`);
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);

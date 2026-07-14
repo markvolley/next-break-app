@@ -1627,7 +1627,9 @@ function dealsMarkup(result){
   `;
 }
 
-// ---------- things to do (real Viator activities only — no fallback) ----------
+// ---------- things to do (real Viator activities, falling back to real free
+// public spots sourced from OpenStreetMap when Viator has nothing — see
+// server.js buildActivitiesForSettings) ----------
 function realActivityCard(a){
   const img = a.image ? `<img src="${a.image}" alt="" loading="lazy">` : '';
   const rating = (a.rating != null) ? `<div class="rating">★ ${a.rating.toFixed ? a.rating.toFixed(1) : a.rating}${a.reviewCount ? ' (' + a.reviewCount + ')' : ''}</div>` : '';
@@ -1647,17 +1649,28 @@ function realActivityCard(a){
   `;
 }
 
+function freeActivityCard(a){
+  return `
+    <div class="activity-card free">
+      <div class="cat">${a.category} · Free</div>
+      <div class="title">${a.title}</div>
+      <div class="desc">A free public spot near your hometown — worth a look on your next break.</div>
+      <a class="book" href="${a.mapUrl}" target="_blank" rel="noopener">📍 View on map →</a>
+    </div>
+  `;
+}
+
 async function renderActivities(hometown){
   const town = hometown || 'your hometown';
   document.getElementById('hometownLabel').textContent = town;
   const grid = document.getElementById('activitiesGrid');
 
   if(!hometown){
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Add your hometown in Setup to see bookable activities here.</div>';
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Add your hometown in Setup to see things to do here.</div>';
     return;
   }
 
-  grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Looking up activities…</div>';
+  grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Looking up things to do…</div>';
 
   let result;
   try{
@@ -1669,10 +1682,11 @@ async function renderActivities(hometown){
 
   if(result.source === 'real' && result.activities.length){
     grid.innerHTML = result.activities.map(realActivityCard).join('');
-  }else if(result.source === 'not-configured'){
-    grid.innerHTML = '<div class="disclaimer" style="grid-column:1/-1;">No activities configured yet for this server.</div>';
+  }else if(result.source === 'free' && result.activities.length){
+    grid.innerHTML = `<div class="disclaimer" style="grid-column:1/-1;">No bookable activities for ${town} yet, so here are some free spots nearby instead.</div>` +
+      result.activities.map(freeActivityCard).join('');
   }else{
-    grid.innerHTML = `<div class="disclaimer" style="grid-column:1/-1;">No bookable activities found for ${town} yet — check back later.</div>`;
+    grid.innerHTML = `<div class="disclaimer" style="grid-column:1/-1;">Nothing found for ${town} yet — bookable or free — worth checking back later.</div>`;
   }
 }
 

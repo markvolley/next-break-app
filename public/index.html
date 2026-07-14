@@ -1965,20 +1965,33 @@ function eventsMarkup(result){
 // A touring show/musical/comedy run shows up as one Ticketmaster "event"
 // per individual performance — same name and venue, different date/time
 // each time. Left alone, a 2-week run would flood this list with a dozen
-// near-identical rows. Grouped here by name+venue instead, keeping the
-// earliest performance as the representative one and just noting how many
-// dates it's running across.
+// near-identical rows. Multi-day competitions/festivals (e.g. a cheer
+// championship) go further: each *ticket type* is its own listing with a
+// day/pass qualifier tacked onto the name — "CheerCon - Saturday",
+// "CheerCon - Sunday", "CheerCon - Two Day Pass" — so an exact title match
+// alone misses them. EVENT_SUFFIX_RE strips a trailing day-of-week or
+// pass-type qualifier before comparing, so all three collapse together;
+// it deliberately only matches known date/pass wording (not any "- X"
+// suffix) so it won't over-merge things like "Ministry of Sound - 00s
+// Session", which is a genuinely distinct event, not a duplicate.
+const EVENT_SUFFIX_RE = /\s*[-–—:]\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|day\s*\d+|part\s*\d+|round\s*\d+|heat\s*\d+|session\s*\d+|(one|two|three|four|five|six|seven|\d+)[\s-]*day\s*pass|weekend\s*pass|multi[\s-]?day\s*pass|full\s*(event\s*)?pass|early\s*bird)\s*$/i;
+
+function baseEventTitle(title){
+  const stripped = (title || '').replace(EVENT_SUFFIX_RE, '').trim();
+  return stripped || (title || '').trim();
+}
+
 function dedupeEventOccurrences(events){
   const groups = new Map();
   for(const e of events){
-    const key = (e.title || '') + '|' + (e.venueName || '');
+    const key = baseEventTitle(e.title).toLowerCase() + '|' + (e.venueName || '').trim().toLowerCase();
     if(!groups.has(key)) groups.set(key, []);
     groups.get(key).push(e);
   }
   return [...groups.values()].map(group => {
     const sorted = [...group].sort((a, b) => (a.localDate + (a.localTime || '')).localeCompare(b.localDate + (b.localTime || '')));
     const dateCount = new Set(sorted.map(e => e.localDate)).size;
-    return { ...sorted[0], dateCount };
+    return { ...sorted[0], title: baseEventTitle(sorted[0].title), dateCount };
   }).sort((a, b) => a.localDate.localeCompare(b.localDate));
 }
 

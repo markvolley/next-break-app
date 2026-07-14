@@ -36,11 +36,23 @@
   .panel h2{margin-top:0;font-size:17px;font-weight:700;letter-spacing:-.01em;}
   .panel h2::after{content:'.';color:var(--accent2);}
   label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px;font-weight:500;}
-  input[type=text],input[type=date],input[type=number],select{
+  input[type=text],input[type=date],input[type=number],input[type=email],input[type=password],select{
     width:100%;padding:10px 12px;border-radius:11px;border:1px solid var(--border);
     background:var(--panel2);color:var(--text);font-size:16px;font-family:var(--font-body);
   }
   input:focus,select:focus{outline:2px solid var(--accent2);outline-offset:1px;}
+  /* Browsers force their own light autofill background (yellow/white) that
+     ignores normal CSS unless overridden this way — without it, a browser-
+     suggested email/password looks like a jarring unstyled box, which reads
+     as "this field already has something typed in it" even when it's just
+     autofill styling on an otherwise-empty field. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus{
+    -webkit-text-fill-color:var(--text);
+    box-shadow:0 0 0px 1000px var(--panel2) inset;
+    transition:background-color 5000s ease-in-out 0s;
+  }
   .row{display:flex;gap:14px;flex-wrap:wrap;}
   .row > div{flex:1;min-width:150px;}
   .mode-toggle{display:flex;gap:8px;margin:6px 0 4px;flex-wrap:wrap;background:rgba(244,238,227,0.08);padding:6px;border-radius:10px;}
@@ -618,7 +630,7 @@ function setAuthMode(mode){
   document.getElementById('googleDivider').style.display = (isLoginOrSignup && authState.googleClientId) ? '' : 'none';
   document.getElementById('googleSignInDiv').style.display = isLoginOrSignup ? '' : 'none';
 
-  const titles = { login: 'Sign in to Next Break', signup: 'Sign in to Next Break', forgot: 'Reset your password', reset: 'Set a new password' };
+  const titles = { login: 'Sign in to Next Break', signup: 'Create your account', forgot: 'Reset your password', reset: 'Set a new password' };
   const subtitles = {
     login: "Save your setup to an account so it's there next time — on any device.",
     signup: "Save your setup to an account so it's there next time — on any device.",

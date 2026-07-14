@@ -340,20 +340,29 @@ async function attachWeather(deals) {
 // break," so an empty section here undercuts that even when there's
 // nothing to book.
 const FREE_ACTIVITIES_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days — real-world parks/beaches don't move
+// A *negative* result (nothing found — geocoding failed, Overpass timed
+// out, a rate limit, or a hometown that genuinely has nothing mapped
+// nearby) gets a much shorter TTL than a real result. Without this, one
+// transient hiccup on the very first lookup for a hometown would cache an
+// empty list for a full 7 days, which looks indistinguishable from "this
+// feature is broken" even after whatever caused it has cleared up.
+const FREE_ACTIVITIES_EMPTY_TTL_MS = 60 * 60 * 1000; // 1 hour
 const freeActivitiesCache = new Map(); // hometown (lowercased) -> { activities, fetchedAt }
 
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of freeActivitiesCache) {
-    if (now - entry.fetchedAt > FREE_ACTIVITIES_CACHE_TTL_MS) freeActivitiesCache.delete(key);
+    const ttl = entry.activities.length ? FREE_ACTIVITIES_CACHE_TTL_MS : FREE_ACTIVITIES_EMPTY_TTL_MS;
+    if (now - entry.fetchedAt > ttl) freeActivitiesCache.delete(key);
   }
-}, 24 * 60 * 60 * 1000).unref();
+}, 60 * 60 * 1000).unref();
 
 async function buildFreeActivitiesForSettings(settings) {
   const key = settings.hometown.trim().toLowerCase();
   const cached = freeActivitiesCache.get(key);
-  if (cached && Date.now() - cached.fetchedAt < FREE_ACTIVITIES_CACHE_TTL_MS) {
-    return cached.activities;
+  if (cached) {
+    const ttl = cached.activities.length ? FREE_ACTIVITIES_CACHE_TTL_MS : FREE_ACTIVITIES_EMPTY_TTL_MS;
+    if (Date.now() - cached.fetchedAt < ttl) return cached.activities;
   }
   let activities = [];
   try {

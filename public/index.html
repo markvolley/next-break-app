@@ -291,15 +291,21 @@
      shell as every other break, just with more visual weight: a warm
      gradient background and a bigger countdown in place of the small
      "X days away" pill. Still opens/closes exactly like any other row. */
-  .accordion-item.hero{background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
-  .accordion-item.hero.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
-  .accordion-item.hero .break-row{padding:20px 22px;}
-  .accordion-item.hero .hero-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:6px;}
-  .accordion-item.hero .dates{font-size:clamp(22px,5vw,30px);}
-  .accordion-item.hero .meta{font-size:13.5px;}
-  .accordion-item.hero .count-wrap{text-align:center;flex:none;}
-  .accordion-item.hero .count{font-size:clamp(26px,6vw,36px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
-  .accordion-item.hero .count-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px;}
+  /* Named "next-up" rather than "hero" deliberately — "hero" is already
+     used by the full-bleed landing-page photo banner further down
+     (.hero{height:min(88vh,760px)}, plus its own ::after gradient), and
+     reusing that class name here made this element inherit THAT sizing,
+     producing a huge near-viewport-height empty box. Distinct class name
+     avoids the collision entirely. */
+  .accordion-item.next-up{background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
+  .accordion-item.next-up.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
+  .accordion-item.next-up .break-row{padding:20px 22px;}
+  .accordion-item.next-up .next-up-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:6px;}
+  .accordion-item.next-up .dates{font-size:clamp(22px,5vw,30px);}
+  .accordion-item.next-up .meta{font-size:13.5px;}
+  .accordion-item.next-up .count-wrap{text-align:center;flex:none;}
+  .accordion-item.next-up .count{font-size:clamp(26px,6vw,36px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
+  .accordion-item.next-up .count-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px;}
   @media (max-width: 640px){
     .break-select-row{flex-direction:column;align-items:flex-start;}
     /* Above ~640px the date block and countdown sit side by side. Below
@@ -307,8 +313,8 @@
        line, left-aligned instead of centered (space-between has nothing
        left to space once there's only one item on a line) — stacking them
        explicitly and centering the countdown reads much better on a phone. */
-    .accordion-item.hero .break-row{padding:18px;flex-direction:column;align-items:stretch;text-align:left;}
-    .accordion-item.hero .right{justify-content:space-between;padding-top:10px;border-top:1px solid rgba(245,176,76,0.25);}
+    .accordion-item.next-up .break-row{padding:18px;flex-direction:column;align-items:stretch;text-align:left;}
+    .accordion-item.next-up .right{justify-content:space-between;padding-top:10px;border-top:1px solid rgba(245,176,76,0.25);}
   }
 
   /* ---------- mobile ---------- */
@@ -1692,10 +1698,10 @@ function renderBreaksList(){
       ? (() => { const c = nextBreakCountdown(b); return `<div class="count-wrap"><div class="count">${c.big}</div><div class="count-label">${c.label}</div></div>`; })()
       : daysBadge(b);
     return `
-      <div class="accordion-item${isOpen ? ' open' : ''}${isHero ? ' hero' : ''}${isHero && b.isOngoing ? ' ongoing' : ''}">
+      <div class="accordion-item${isOpen ? ' open' : ''}${isHero ? ' next-up' : ''}${isHero && b.isOngoing ? ' ongoing' : ''}">
         <div class="break-row" onclick="toggleBreak('${b.key}')">
           <div>
-            ${isHero ? '<div class="hero-label">Your next break</div>' : ''}
+            ${isHero ? '<div class="next-up-label">Your next break</div>' : ''}
             <div class="dates">${fmtDateRange(b)}</div>
             <div class="meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
           </div>

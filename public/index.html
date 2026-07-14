@@ -87,9 +87,12 @@
   .deal-photo{position:relative;height:300px;display:flex;flex-direction:column;}
   .deal-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:var(--border);}
   .deal-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0) 35%, rgba(16,24,32,0.92) 100%);}
-  .deal-photo .region-tag{position:relative;z-index:2;align-self:flex-start;margin:14px 0 0 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);}
+  .deal-photo .deal-tags-row{position:relative;z-index:2;align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;margin:14px 14px 0;}
+  .deal-photo .region-tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);}
   .deal-photo .region-tag.domestic{background:rgba(244,238,227,0.85);color:#101820;}
   .deal-photo .region-tag.intl{background:rgba(245,176,76,0.9);color:#101820;}
+  .deal-photo .quick-trip-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);background:rgba(16,24,32,0.78);color:var(--text);border:1px solid rgba(244,238,227,0.35);}
+  .deal-photo .quick-trip-tag .info-icon{width:12px;height:12px;font-size:9px;margin-left:5px;background:rgba(244,238,227,0.3);}
   .deal-photo .deal-overlay-text{position:relative;z-index:2;margin-top:auto;padding:20px;width:100%;display:flex;justify-content:space-between;align-items:flex-end;box-sizing:border-box;gap:10px;}
   .deal-photo .dest-info{flex:1;min-width:0;}
   .deal-photo .dest{font-weight:700;font-size:22px;color:#fff;overflow-wrap:break-word;}
@@ -1588,7 +1591,10 @@ function dealsMarkup(result){
     <div class="deal-card">
       <div class="deal-photo">
         ${photo ? `<img src="${photo}" alt="" loading="lazy">` : ''}
-        <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
+        <div class="deal-tags-row">
+          <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
+          ${d.isQuickTrip ? `<div class="quick-trip-tag">Quick trip<span class="info-icon" tabindex="0">i<span class="info-tooltip">This fits your break, but it's a shorter trip than we'd usually call a full break away — ${d.nights} night${d.nights===1?'':'s'} once you count the flying time. Still a real, bookable fare if it works for you.</span></span></div>` : ''}
+        </div>
         <div class="deal-overlay-text">
           <div class="dest-info">
             <div class="dest">${d.name}</div>
@@ -1598,7 +1604,7 @@ function dealsMarkup(result){
         </div>
       </div>
       <div class="deal-card-body">
-        <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}</div>
+        <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}${d.nights != null ? ` · ${d.nights} night${d.nights===1?'':'s'}` : ''}</div>
         ${weatherLine(d.weather)}
         <div class="blurb">${d.blurb}</div>
         <a class="book-btn" href="${d.bookUrl}" target="_blank" rel="noopener sponsored" onclick="trackDealClick('${d.iata}')">✈️ Book this fare →</a>

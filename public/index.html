@@ -73,7 +73,7 @@
   .break-row{padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer;transition:background .15s;}
   .break-row:hover{background:rgba(245,176,76,0.08);}
   .accordion-item.open .break-row{background:rgba(245,176,76,0.14);}
-  .break-row .dates{font-weight:700;font-size:15px;}
+  .break-row .dates{font-weight:800;font-size:17px;letter-spacing:-.01em;}
   .break-row .meta{color:var(--muted);font-size:13px;margin-top:2px;}
   .break-row .right{display:flex;align-items:center;gap:10px;}
   .break-row .chevron{color:var(--muted);font-size:16px;display:inline-block;transition:transform .15s;}
@@ -277,12 +277,28 @@
   .break-select-row h2{margin:0;}
   .break-projected{color:var(--muted);font-size:13px;}
   #breaksList{margin-top:16px;}
-  .break-row .days-badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:var(--radius-pill);white-space:nowrap;}
+  .break-row .days-badge{font-size:12.5px;font-weight:700;padding:5px 12px;border-radius:var(--radius-pill);white-space:nowrap;}
   .break-row .days-badge.ongoing{background:var(--accent2);color:#101820;}
   .break-row .days-badge.soon{background:rgba(245,176,76,0.2);color:var(--accent2);}
   .break-row .days-badge.later{background:rgba(244,238,227,0.12);color:var(--muted);}
+
+  /* Big "next break" countdown banner above the list — the date range and
+     days-to-go are the two things a FIFO/roster worker actually opens this
+     app to check, so they get real visual weight here instead of being the
+     same size as everything else. */
+  .next-break-hero{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+    background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));
+    border:1px solid rgba(245,176,76,0.35);border-radius:16px;padding:20px 22px;margin-bottom:18px;}
+  .next-break-hero .hero-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:6px;}
+  .next-break-hero .range{font-size:clamp(24px,5vw,32px);font-weight:800;letter-spacing:-.02em;line-height:1.05;}
+  .next-break-hero .meta{color:var(--muted);font-size:13.5px;margin-top:4px;}
+  .next-break-hero .count-wrap{text-align:center;flex:none;}
+  .next-break-hero .count{font-size:clamp(32px,7vw,44px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
+  .next-break-hero .count-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:4px;}
+  .next-break-hero.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
   @media (max-width: 640px){
     .break-select-row{flex-direction:column;align-items:flex-start;}
+    .next-break-hero{padding:18px;}
   }
 
   /* ---------- mobile ---------- */
@@ -474,6 +490,7 @@
     <div id="interestsPromo" class="account-promo" style="display:none;"></div>
 
     <div class="panel">
+      <div id="nextBreakHero"></div>
       <div class="break-select-row">
         <h2 id="breakHeading">Upcoming breaks</h2>
         <div class="break-projected" id="breakProjected"></div>
@@ -1537,10 +1554,47 @@ function fmtDateRange(brk){
   return `${s.getDate()} ${s.toLocaleDateString(undefined, {month:'short'})} – ${e.getDate()} ${e.toLocaleDateString(undefined, {month:'short'})}`;
 }
 
+// Big number + word for the hero banner — deliberately separate from
+// daysBadge() above, which stays small/pill-shaped for every row in the
+// list. This is the one number the whole app is built around, so it gets
+// its own, much bigger, treatment.
+function nextBreakCountdown(b){
+  if(b.isOngoing) return { big: 'Now', label: 'Happening', ongoing: true };
+  if(b.daysUntil === 0) return { big: 'Today', label: "It's on", ongoing: true };
+  if(b.daysUntil === 1) return { big: '1', label: 'day to go', ongoing: false };
+  return { big: String(b.daysUntil), label: 'days to go', ongoing: false };
+}
+
+function renderNextBreakHero(){
+  const hero = document.getElementById('nextBreakHero');
+  if(!hero) return;
+  if(!currentBreaks.length){
+    hero.innerHTML = '';
+    return;
+  }
+  const b = currentBreaks[0];
+  const c = nextBreakCountdown(b);
+  hero.innerHTML = `
+    <div class="next-break-hero${c.ongoing ? ' ongoing' : ''}">
+      <div>
+        <div class="hero-label">Your next break</div>
+        <div class="range">${fmtDateRange(b)}</div>
+        <div class="meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
+      </div>
+      <div class="count-wrap">
+        <div class="count">${c.big}</div>
+        <div class="count-label">${c.label}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderBreaksList(){
   const container = document.getElementById('breaksList');
   const heading = document.getElementById('breakHeading');
   const projected = document.getElementById('breakProjected');
+
+  renderNextBreakHero();
 
   if(!currentBreaks.length){
     heading.textContent = 'Upcoming breaks';

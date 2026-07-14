@@ -128,6 +128,17 @@
   .activity-card .duration{color:var(--muted);font-size:12px;margin-bottom:8px;}
   .activity-card a.book{color:var(--accent);font-size:12.5px;text-decoration:none;font-weight:600;display:block;margin-top:8px;}
   .activity-card a.book:hover{text-decoration:underline;}
+  .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:6px;}
+  .stat-card{border:1px solid var(--border);border-radius:16px;padding:16px;background:var(--panel2);}
+  .stat-card .n{font-size:26px;font-weight:800;letter-spacing:-.01em;}
+  .stat-card .l{color:var(--muted);font-size:12.5px;margin-top:4px;}
+  .stat-list{list-style:none;margin:0;padding:0;}
+  .stat-list li{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .stat-list li:last-child{border-bottom:none;}
+  .stat-list .muted{color:var(--muted);}
+  .stat-pill{background:rgba(245,176,76,0.16);color:var(--accent);font-size:11.5px;font-weight:700;padding:2px 10px;border-radius:var(--radius-pill);}
+  .calendar-box{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;}
+  .calendar-box input[readonly]{cursor:text;}
   .top-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
   .top-bar .summary{font-size:13.5px;color:var(--muted);}
   .top-bar .summary b{color:var(--text);}
@@ -468,6 +479,17 @@
         <div class="break-projected" id="breakProjected"></div>
       </div>
       <div id="breaksList"></div>
+      <button class="btn secondary small" id="calendarSetupBtn" style="margin-top:14px;" onclick="setUpCalendarFeed()">📅 Sync to calendar</button>
+      <div id="calendarBox" class="calendar-box" style="display:none;">
+        <label style="margin-top:0;">Subscribe link (paste into Google/Apple/Outlook calendar)</label>
+        <input type="text" id="calendarUrl" readonly onclick="this.select()">
+        <div class="hint" style="margin-top:8px;">Subscribing keeps this synced automatically as your roster changes — no need to re-download.</div>
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn secondary small" onclick="copyCalendarUrl()">Copy link</button>
+          <a class="btn secondary small" id="calendarDownloadLink" href="#" download="next-break.ics" style="text-decoration:none;">Download .ics file</a>
+        </div>
+        <div class="auth-success" id="calendarCopyMsg" style="color:var(--accent);font-size:12.5px;margin-top:10px;"></div>
+      </div>
     </div>
 
     <div class="panel">
@@ -516,6 +538,32 @@
       <div style="margin-top:16px;">
         <button class="btn btn-block-mobile" id="saveInterestsBtn" onclick="saveInterests()">Save interests</button>
       </div>
+    </div>
+  </div>
+
+  <!-- STATS VIEW (logged-in users only) -->
+  <div id="view-stats" style="display:none;">
+    <div class="panel">
+      <h2>Your stats</h2>
+      <div class="hint" style="margin-top:0;">Built from your actual roster and the deals you've clicked into — not projections.</div>
+      <div class="stat-cards" style="margin-top:16px;">
+        <div class="stat-card"><div class="n" id="statUpcoming">–</div><div class="l">Upcoming breaks</div></div>
+        <div class="stat-card"><div class="n" id="statNextIn">–</div><div class="l">Days to next break</div></div>
+        <div class="stat-card"><div class="n" id="statClicksTotal">–</div><div class="l">Deals you've clicked into</div></div>
+        <div class="stat-card"><div class="n" id="statUniqueDest">–</div><div class="l">Different destinations</div></div>
+      </div>
+      <div class="hint" id="statMemberSince" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Your next break</h2>
+      <div id="statNextBreak" class="empty">No upcoming break set yet — check your Setup.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Destinations you've clicked into</h2>
+      <ul class="stat-list" id="statTopDest"></ul>
+      <div class="empty" id="statTopDestEmpty" style="display:none;">Click "Book this fare" on a deal and it'll show up here.</div>
     </div>
   </div>
 
@@ -578,6 +626,7 @@ function renderAccountArea(){
     area.innerHTML = `
       <button class="nav-btn" id="navDash" onclick="showView('dashboard')">My Breaks</button>
       <button class="nav-btn" id="navSetup" onclick="showView('setup')">Setup</button>
+      <button class="nav-btn" id="navStats" onclick="showView('stats')">Stats</button>
       <button class="nav-btn" id="navProfile" onclick="showView('profile')">Profile</button>
       <span class="account-email">${authState.email}</span>
       <button class="nav-btn" onclick="logout()">Log out</button>
@@ -1105,7 +1154,7 @@ async function showView(view){
   // Profile is only reachable while logged in — the link that leads here
   // only renders when authState.loggedIn, but guard directly too in case
   // something else ever tries to navigate here (e.g. a stale bookmark).
-  if(view === 'profile' && !authState.loggedIn) view = 'dashboard';
+  if((view === 'profile' || view === 'stats') && !authState.loggedIn) view = 'dashboard';
   // Logged-in users never see the marketing landing page — they go
   // straight to their breaks/deals. (Clicking the logo, or finishing
   // signup while on the landing page, both route through here.)
@@ -1125,18 +1174,22 @@ async function showView(view){
   document.getElementById('view-setup').style.display = (view==='setup' || view==='landing') ? '' : 'none';
   document.getElementById('view-dashboard').style.display = view==='dashboard' ? '' : 'none';
   document.getElementById('view-profile').style.display = view==='profile' ? '' : 'none';
+  document.getElementById('view-stats').style.display = view==='stats' ? '' : 'none';
   const navSetup = document.getElementById('navSetup');
   if(navSetup) navSetup.classList.toggle('active', view==='setup');
   const navDash = document.getElementById('navDash');
   if(navDash) navDash.classList.toggle('active', view==='dashboard');
   const navProfile = document.getElementById('navProfile');
   if(navProfile) navProfile.classList.toggle('active', view==='profile');
+  const navStats = document.getElementById('navStats');
+  if(navStats) navStats.classList.toggle('active', view==='stats');
 
   if(view !== 'landing') markLandingSeen();
 
   if(view==='setup' || view==='landing') await fillSetupForm();
   if(view==='dashboard') await renderDashboard();
   if(view==='profile') await fillProfileForm();
+  if(view==='stats') await renderStats();
 }
 
 function scrollToSetup(){
@@ -1254,6 +1307,17 @@ function fmtDateTime(isoWithOffset){
   return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
 }
 
+// For plain YYYY-MM-DD date-only strings (break start/end, account
+// createdAt sliced to a date) — NOT via `new Date(str)`, which parses a
+// bare date as UTC midnight and can display a day off depending on the
+// viewer's timezone. Building the Date from local Y/M/D components instead
+// keeps this consistent with the timezone handling elsewhere in the app.
+function fmtDateOnly(isoDateStr){
+  if(!isoDateStr) return '';
+  const [y, m, d] = isoDateStr.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
+}
+
 // Deals are cached server-side for 24h (see server.js buildDealsForBreak) —
 // this turns that cache timestamp into a friendly "how fresh is this"
 // label so it's visible the prices aren't refetched on every page load.
@@ -1266,6 +1330,98 @@ function fmtRefreshed(iso){
   const hours = Math.round(mins / 60);
   if(hours < 24) return `${hours} hour${hours===1?'':'s'} ago`;
   return then.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' at ' + then.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+}
+
+// ---------- calendar export ----------
+// Available to anyone with breaks set up, logged in or not — it's keyed
+// off whatever userId already drives /api/breaks (device id or session),
+// same as the rest of the dashboard. The link itself is a long-lived
+// token good enough for a calendar app to poll unattended; see
+// handleGetCalendarToken/handleCalendarFeed in server.js.
+async function setUpCalendarFeed(){
+  const btn = document.getElementById('calendarSetupBtn');
+  setBtnBusy(btn, true, 'Generating…');
+  try{
+    const result = await api('/api/calendar-token');
+    document.getElementById('calendarUrl').value = result.icsUrl;
+    document.getElementById('calendarDownloadLink').href = result.icsUrl;
+    document.getElementById('calendarBox').style.display = '';
+    document.getElementById('calendarCopyMsg').textContent = '';
+  }catch(e){
+    showBanner('error', 'Could not set up calendar link: ' + e.message);
+  }finally{
+    setBtnBusy(btn, false);
+  }
+}
+
+function copyCalendarUrl(){
+  const input = document.getElementById('calendarUrl');
+  input.select();
+  const msg = document.getElementById('calendarCopyMsg');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(input.value).then(() => {
+      msg.textContent = 'Copied!';
+      setTimeout(() => { msg.textContent = ''; }, 2000);
+    }).catch(() => {
+      msg.textContent = 'Could not copy — select the link above and copy manually.';
+    });
+  }else{
+    document.execCommand('copy');
+    msg.textContent = 'Copied!';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  }
+}
+
+// ---------- personal stats (logged-in users only) ----------
+async function renderStats(){
+  let data;
+  try{
+    data = await api('/api/stats');
+  }catch(e){
+    document.getElementById('statNextBreak').className = 'empty';
+    document.getElementById('statNextBreak').textContent = 'Could not load stats: ' + e.message;
+    return;
+  }
+
+  document.getElementById('statUpcoming').textContent = data.upcomingBreaksCount;
+  document.getElementById('statNextIn').textContent = data.nextBreak
+    ? (data.nextBreak.isOngoing ? 'Now' : Math.max(0, data.nextBreak.daysUntil))
+    : '–';
+  document.getElementById('statClicksTotal').textContent = data.dealClicks.total;
+  document.getElementById('statUniqueDest').textContent = data.dealClicks.uniqueDestinations;
+  document.getElementById('statMemberSince').textContent = data.memberSince
+    ? 'Member since ' + fmtDateOnly(data.memberSince)
+    : '';
+
+  const nextEl = document.getElementById('statNextBreak');
+  if(data.nextBreak){
+    const nb = data.nextBreak;
+    nextEl.className = '';
+    nextEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div style="font-weight:700;font-size:16px;">${fmtDateOnly(nb.start)} → ${fmtDateOnly(nb.end)}</div>
+          <div class="hint" style="margin-top:4px;">${nb.duration} day${nb.duration===1?'':'s'} off${nb.isOngoing ? ' · happening now' : ''}</div>
+        </div>
+        ${!nb.isOngoing ? `<div class="stat-pill">${nb.daysUntil} day${nb.daysUntil===1?'':'s'} to go</div>` : ''}
+      </div>
+    `;
+  }else{
+    nextEl.className = 'empty';
+    nextEl.textContent = 'No upcoming break set yet — check your Setup.';
+  }
+
+  const destList = document.getElementById('statTopDest');
+  const destEmpty = document.getElementById('statTopDestEmpty');
+  if(data.dealClicks.topDestinations.length){
+    destEmpty.style.display = 'none';
+    destList.innerHTML = data.dealClicks.topDestinations.map(d =>
+      `<li><span>${d.name}</span><span class="stat-pill">${d.count} click${d.count===1?'':'s'}</span></li>`
+    ).join('');
+  }else{
+    destEmpty.style.display = '';
+    destList.innerHTML = '';
+  }
 }
 
 // ---------- account promo (dashboard, anonymous users only) ----------

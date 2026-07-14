@@ -15,16 +15,18 @@ import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
   setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
-  setAccountProfile, listAccounts, recordDealClick, listDealClicks, _dataFilePath
+  setAccountProfile, listAccounts, recordDealClick, listDealClicks,
+  getCalendarTokenForUser, setCalendarToken, getUserIdForCalendarToken, _dataFilePath
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
 import { findFreeActivities } from './lib/activities.js';
 import { getWeatherForDate } from './lib/weather.js';
-import { hashPassword, verifyPassword, createSessionToken, createResetToken, isValidEmail } from './lib/auth.js';
+import { hashPassword, verifyPassword, createSessionToken, createResetToken, createCalendarToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
 import { sendPasswordResetEmail } from './lib/email.js';
+import { buildBreaksICS } from './lib/calendar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -645,6 +647,40 @@ async function handleGetBreaks(req, res, userId) {
   });
 }
 
+// ---------- calendar export ----------
+// The token endpoint is behind the normal userId gate (device id or
+// session), but the .ics feed itself is deliberately NOT — calendar apps
+// (Google/Apple/Outlook) fetch subscribed feeds unattended on their own
+// schedule with no login, so the token in the URL is the only thing
+// protecting it. Same trust model as e.g. a Google Calendar "secret
+// address" ICS link.
+async function handleGetCalendarToken(req, res, userId) {
+  let token = getCalendarTokenForUser(userId);
+  if (!token) {
+    token = createCalendarToken();
+    setCalendarToken(token, userId);
+  }
+  const origin = originFromRequest(req);
+  sendJson(res, 200, { icsUrl: `${origin}/calendar/${token}.ics` });
+}
+
+async function handleCalendarFeed(req, res, token) {
+  const userId = getUserIdForCalendarToken(token);
+  if (!userId) {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    return res.end('Calendar feed not found.');
+  }
+  const settings = getSettings(userId);
+  const breaks = computeUpcomingBreaks(settings);
+  const ics = buildBreaksICS(breaks, { calendarName: 'My Next Break', domain: 'nextbreak.com.au' });
+  res.writeHead(200, {
+    'Content-Type': 'text/calendar; charset=utf-8',
+    'Content-Disposition': 'inline; filename="next-break.ics"',
+    'Cache-Control': 'no-store'
+  });
+  res.end(ics);
+}
+
 // Personalisation only applies for a real logged-in session, not the
 // anonymous per-device id — "learn what a logged-in user likes" was the
 // ask, and it also means a signed-out visitor never gets nudged off the
@@ -704,6 +740,59 @@ async function handleGetActivities(req, res, userId) {
   const settings = getSettings(userId);
   const { source, activities } = await buildActivitiesForSettings(settings);
   sendJson(res, 200, { source, hometown: settings.hometown || '', activities });
+}
+
+// ---------- personal stats ----------
+// Logged-in only, same reasoning as personalisation/deal-click tracking
+// above — an anonymous device id has no durable click history worth
+// showing. Deliberately built only from data we actually record: real
+// upcoming breaks from the roster, and "Book this fare" clicks. We never
+// see whether a click actually turned into a completed booking (that
+// happens on the airline/OTA's own site), so this is framed as "deals
+// you've clicked into," not "trips you've taken" — no fabricated numbers.
+async function handleGetStats(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+
+  const account = getAccount(email);
+  const settings = getSettings(email);
+  const breaks = computeUpcomingBreaks(settings);
+
+  let nextBreak = null;
+  if (breaks.length) {
+    const b = breaks[0];
+    const status = breakStatus(b);
+    nextBreak = {
+      start: toISO(b.start),
+      end: toISO(b.end),
+      duration: b.duration,
+      daysUntil: status.daysUntil,
+      isOngoing: status.isOngoing
+    };
+  }
+
+  const myClicks = listDealClicks().filter(c => c.email === email.toLowerCase());
+  const byDestination = new Map();
+  for (const c of myClicks) {
+    const key = c.iata || 'unknown';
+    if (!byDestination.has(key)) byDestination.set(key, { iata: key, name: c.name || key, count: 0 });
+    byDestination.get(key).count++;
+  }
+  const topDestinations = [...byDestination.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+  const recentClicks = [...myClicks].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 5);
+
+  sendJson(res, 200, {
+    memberSince: account?.createdAt || null,
+    interests: settings.interests || [],
+    upcomingBreaksCount: breaks.length,
+    nextBreak,
+    dealClicks: {
+      total: myClicks.length,
+      uniqueDestinations: byDestination.size,
+      topDestinations,
+      recent: recentClicks
+    }
+  });
 }
 
 // ---------- admin dashboard ----------
@@ -906,6 +995,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/profile' && req.method === 'PUT') return await handlePutProfile(req, res);
       if (pathname === '/api/deal-click' && req.method === 'POST') return await handleDealClick(req, res);
       if (pathname === '/api/admin/stats' && req.method === 'GET') return await handleAdminStats(req, res);
+      if (pathname === '/api/stats' && req.method === 'GET') return await handleGetStats(req, res);
 
       const userId = maybeUserId;
       if (!userId) return sendJson(res, 400, { error: 'Missing X-User-Id header.' });
@@ -917,9 +1007,17 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/activities' && req.method === 'GET') return await handleGetActivities(req, res, userId);
       if (pathname === '/api/checkout' && req.method === 'POST') return await handleCheckout(req, res, userId);
       if (pathname === '/api/checkout/confirm' && req.method === 'GET') return await handleConfirmCheckout(req, res, userId, searchParams);
+      if (pathname === '/api/calendar-token' && req.method === 'GET') return await handleGetCalendarToken(req, res, userId);
 
       return sendJson(res, 404, { error: 'Unknown API route' });
     }
+
+    // Calendar feed — deliberately outside /api/ and NOT behind the userId
+    // check above, since it's fetched unattended by calendar apps with no
+    // X-User-Id header or session cookie. See handleCalendarFeed for the
+    // token-is-the-auth reasoning.
+    const calendarMatch = pathname.match(/^\/calendar\/([a-f0-9]+)\.ics$/);
+    if (calendarMatch && req.method === 'GET') return await handleCalendarFeed(req, res, calendarMatch[1]);
 
     if (pathname.startsWith('/avatars/') && req.method === 'GET') return serveAvatar(req, res, pathname);
 

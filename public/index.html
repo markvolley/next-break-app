@@ -1547,14 +1547,16 @@ async function renderDashboard(){
     return;
   }
 
-  // Drop the open key if that break no longer exists (roster changed);
-  // default to expanding just the soonest break the first time breaks load.
+  // Drop the open key if that break no longer exists (roster changed).
+  // Breaks load minimised — nothing auto-expands, and deals/events for a
+  // break aren't fetched until the user actually taps it open.
   if(!currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = null;
-  if(!openBreakKey) openBreakKey = currentBreaks[0].key;
 
   renderBreaksList();
-  if(!dealsCache[openBreakKey]) loadDeals(openBreakKey);
-  if(!eventsCache[openBreakKey]) loadEvents(openBreakKey);
+  if(openBreakKey){
+    if(!dealsCache[openBreakKey]) loadDeals(openBreakKey);
+    if(!eventsCache[openBreakKey]) loadEvents(openBreakKey);
+  }
 }
 
 function toggleBreak(key){

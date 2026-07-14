@@ -298,7 +298,13 @@
   .next-break-hero.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
   @media (max-width: 640px){
     .break-select-row{flex-direction:column;align-items:flex-start;}
-    .next-break-hero{padding:18px;}
+    /* Above ~640px the date block and countdown sit side by side. Below
+       that, flex-wrap alone would leave the countdown orphaned on its own
+       line, left-aligned instead of centered (space-between has nothing
+       left to space once there's only one item on a line) — stacking them
+       explicitly and centering the countdown reads much better on a phone. */
+    .next-break-hero{padding:18px;flex-direction:column;align-items:stretch;text-align:left;}
+    .next-break-hero .count-wrap{text-align:center;padding-top:6px;border-top:1px solid rgba(245,176,76,0.25);}
   }
 
   /* ---------- mobile ---------- */

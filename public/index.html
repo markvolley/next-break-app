@@ -285,20 +285,21 @@
   .break-row .days-badge.soon{background:rgba(245,176,76,0.2);color:var(--accent2);}
   .break-row .days-badge.later{background:rgba(244,238,227,0.12);color:var(--muted);}
 
-  /* Big "next break" countdown banner above the list — the date range and
-     days-to-go are the two things a FIFO/roster worker actually opens this
-     app to check, so they get real visual weight here instead of being the
-     same size as everything else. */
-  .next-break-hero{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
-    background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));
-    border:1px solid rgba(245,176,76,0.35);border-radius:16px;padding:20px 22px;margin-bottom:18px;}
-  .next-break-hero .hero-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:6px;}
-  .next-break-hero .range{font-size:clamp(24px,5vw,32px);font-weight:800;letter-spacing:-.02em;line-height:1.05;}
-  .next-break-hero .meta{color:var(--muted);font-size:13.5px;margin-top:4px;}
-  .next-break-hero .count-wrap{text-align:center;flex:none;}
-  .next-break-hero .count{font-size:clamp(32px,7vw,44px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
-  .next-break-hero .count-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:4px;}
-  .next-break-hero.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
+  /* The soonest break gets the "hero" treatment as the first item in the
+     breaks list itself (not a separate banner above it — that used to
+     duplicate the same date range twice on screen). Same accordion-item
+     shell as every other break, just with more visual weight: a warm
+     gradient background and a bigger countdown in place of the small
+     "X days away" pill. Still opens/closes exactly like any other row. */
+  .accordion-item.hero{background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
+  .accordion-item.hero.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
+  .accordion-item.hero .break-row{padding:20px 22px;}
+  .accordion-item.hero .hero-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:6px;}
+  .accordion-item.hero .dates{font-size:clamp(22px,5vw,30px);}
+  .accordion-item.hero .meta{font-size:13.5px;}
+  .accordion-item.hero .count-wrap{text-align:center;flex:none;}
+  .accordion-item.hero .count{font-size:clamp(26px,6vw,36px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
+  .accordion-item.hero .count-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px;}
   @media (max-width: 640px){
     .break-select-row{flex-direction:column;align-items:flex-start;}
     /* Above ~640px the date block and countdown sit side by side. Below
@@ -306,8 +307,8 @@
        line, left-aligned instead of centered (space-between has nothing
        left to space once there's only one item on a line) — stacking them
        explicitly and centering the countdown reads much better on a phone. */
-    .next-break-hero{padding:18px;flex-direction:column;align-items:stretch;text-align:left;}
-    .next-break-hero .count-wrap{text-align:center;padding-top:6px;border-top:1px solid rgba(245,176,76,0.25);}
+    .accordion-item.hero .break-row{padding:18px;flex-direction:column;align-items:stretch;text-align:left;}
+    .accordion-item.hero .right{justify-content:space-between;padding-top:10px;border-top:1px solid rgba(245,176,76,0.25);}
   }
 
   /* ---------- mobile ---------- */
@@ -498,7 +499,6 @@
     <div id="interestsPromo" class="account-promo" style="display:none;"></div>
 
     <div class="panel">
-      <div id="nextBreakHero"></div>
       <div class="break-select-row">
         <h2 id="breakHeading">Upcoming breaks</h2>
         <div class="break-projected" id="breakProjected"></div>
@@ -1634,36 +1634,10 @@ function nextBreakCountdown(b){
   return { big: String(b.daysUntil), label: 'days to go', ongoing: false };
 }
 
-function renderNextBreakHero(){
-  const hero = document.getElementById('nextBreakHero');
-  if(!hero) return;
-  if(!currentBreaks.length){
-    hero.innerHTML = '';
-    return;
-  }
-  const b = currentBreaks[0];
-  const c = nextBreakCountdown(b);
-  hero.innerHTML = `
-    <div class="next-break-hero${c.ongoing ? ' ongoing' : ''}">
-      <div>
-        <div class="hero-label">Your next break</div>
-        <div class="range">${fmtDateRange(b)}</div>
-        <div class="meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
-      </div>
-      <div class="count-wrap">
-        <div class="count">${c.big}</div>
-        <div class="count-label">${c.label}</div>
-      </div>
-    </div>
-  `;
-}
-
 function renderBreaksList(){
   const container = document.getElementById('breaksList');
   const heading = document.getElementById('breakHeading');
   const projected = document.getElementById('breakProjected');
-
-  renderNextBreakHero();
 
   if(!currentBreaks.length){
     heading.textContent = 'Upcoming breaks';
@@ -1677,7 +1651,7 @@ function renderBreaksList(){
     ? `Projected from ${currentPattern.daysOn} on / ${currentPattern.daysOff} off`
     : '';
 
-  container.innerHTML = currentBreaks.slice(0, 6).map(b => {
+  container.innerHTML = currentBreaks.slice(0, 6).map((b, i) => {
     const isOpen = openBreakKey === b.key;
     let bodyHtml = '';
     if(isOpen){
@@ -1694,15 +1668,24 @@ function renderBreaksList(){
       // "not configured" (no error banner cluttering the deals view).
       bodyHtml += eventsMarkup(eventsCache[b.key]);
     }
+    // The soonest break (i === 0) gets the bigger "hero" treatment right
+    // inside the list — same expand/collapse behaviour as every other row,
+    // just more prominent, and without repeating its date range in a
+    // separate banner above.
+    const isHero = i === 0;
+    const rightHtml = isHero
+      ? (() => { const c = nextBreakCountdown(b); return `<div class="count-wrap"><div class="count">${c.big}</div><div class="count-label">${c.label}</div></div>`; })()
+      : daysBadge(b);
     return `
-      <div class="accordion-item${isOpen ? ' open' : ''}">
+      <div class="accordion-item${isOpen ? ' open' : ''}${isHero ? ' hero' : ''}${isHero && b.isOngoing ? ' ongoing' : ''}">
         <div class="break-row" onclick="toggleBreak('${b.key}')">
           <div>
+            ${isHero ? '<div class="hero-label">Your next break</div>' : ''}
             <div class="dates">${fmtDateRange(b)}</div>
             <div class="meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
           </div>
           <div class="right">
-            ${daysBadge(b)}
+            ${rightHtml}
             <span class="chevron">›</span>
           </div>
         </div>

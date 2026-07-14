@@ -60,7 +60,9 @@
   <ul>
     <li><b>Roster and trip planning details</b> — your hometown, home
     airport, and either your repeating roster pattern (days on/off and next
-    break start) or manually entered break dates.</li>
+    break start) or manually entered break dates. Your hometown is also
+    converted to an approximate latitude/longitude (via a free geocoding
+    lookup) so we can search for nearby events for your break dates.</li>
     <li><b>Account details</b>, if you create an account — your email
     address and a securely hashed password (we never store or see your
     password in plain text), or, if you sign in with Google, the basic
@@ -83,7 +85,7 @@
 
   <h2>3. Why we collect, use and disclose it</h2>
   <p>Solely to provide and improve the Service: projecting your upcoming
-  breaks, looking up real flight prices and activities for those dates,
+  breaks, looking up real flight prices and nearby events for those dates,
   identifying your account so your setup is saved across devices, and
   processing any payment you choose to make. We do not sell your personal
   information, and we do not use it for advertising or share it with data
@@ -96,8 +98,8 @@
   account, your setup is instead kept in your browser's local storage
   (never sent to any server other than ours) so it's there next time you
   visit. We don't run analytics or advertising trackers on the Service
-  itself. Once you click through to book a flight or activity, that
-  third-party site (Aviasales/Travelpayouts, Viator) may set its own
+  itself. Once you click through to book a flight or event ticket, that
+  third-party site (Aviasales/Travelpayouts, Ticketmaster) may set its own
   cookies under its own privacy policy — that's outside our control.</p>
 
   <h2>5. Who we disclose information to, and overseas recipients</h2>
@@ -108,7 +110,8 @@
   <table>
     <tr><th>Provider</th><th>What for</th><th>Roughly where</th></tr>
     <tr><td>Travelpayouts / Aviasales</td><td>Real flight price lookups and booking links</td><td>Cyprus / EU</td></tr>
-    <tr><td>Viator (a TripAdvisor company)</td><td>Activity listings and booking links</td><td>United States</td></tr>
+    <tr><td>Ticketmaster</td><td>Real event listings and booking links near your hometown, via their public Discovery API</td><td>United States</td></tr>
+    <tr><td>OpenStreetMap (Nominatim)</td><td>Converting your hometown into an approximate latitude/longitude, so we can search for nearby events</td><td>Germany / EU (community-run)</td></tr>
     <tr><td>Stripe</td><td>Payment processing, if you use a paid feature</td><td>United States</td></tr>
     <tr><td>Google</td><td>Google Sign-In, if you choose to use it</td><td>United States</td></tr>
     <tr><td>Resend</td><td>Sending password-reset emails</td><td>United States</td></tr>
@@ -116,8 +119,9 @@
   <p>Each of these is a well-established provider with its own privacy and
   security commitments, and we only send them the minimum information each
   needs to do its job (e.g. Aviasales gets your home airport and travel
-  dates, not your email). We haven't audited each provider's internal
-  infrastructure in detail, but we choose providers with credible,
+  dates, Ticketmaster gets an approximate location and date range, not your
+  email or password in either case). We haven't audited each provider's
+  internal infrastructure in detail, but we choose providers with credible,
   published privacy practices. Once you click a booking link and leave
   Next Break, you're dealing directly with that provider under its own
   privacy policy.</p>
@@ -148,9 +152,9 @@
   (OAIC) at <a href="https://www.oaic.gov.au" target="_blank" rel="noopener">oaic.gov.au</a>.</p>
 
   <h2>9. Automated decision-making</h2>
-  <p>The Service surfaces flight and activity suggestions using
-  rule-based logic (matching real cached fares to your break dates and
-  route) — it doesn't use your personal information to make any automated
+  <p>The Service surfaces flight and event suggestions using
+  rule-based logic (matching real cached fares and nearby events to your
+  break dates and route) — it doesn't use your personal information to make any automated
   decision that significantly affects your legal rights or similar
   interests (for example, we don't do automated pricing decisions about
   you, credit checks, or eligibility assessments). If that ever changes,

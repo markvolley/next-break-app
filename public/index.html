@@ -317,6 +317,12 @@
     header h1{font-size:16px;}
     header > div{width:100%;justify-content:space-between;}
     .account-area{margin-left:auto;}
+    /* Logged-out header (just "Log in" / "Create account") — keep it on
+       the same row as the logo, vertically centred with it, instead of
+       dropping to its own full-width row like the logged-in nav needs. */
+    header.anon{flex-direction:row;align-items:center;flex-wrap:nowrap;}
+    header.anon > div{width:auto;}
+    header.anon .account-area{margin-left:0;}
     .account-email{max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .info-tooltip{left:0;transform:translate(0,4px);width:180px;}
     .info-icon:hover .info-tooltip,.info-icon:focus .info-tooltip{transform:translate(0,0);}
@@ -447,9 +453,9 @@
 
       <div class="swing-row">
         <div class="swing-field">
-          <label>Hometown<span class="info-icon" tabindex="0">i<span class="info-tooltip">Where you're based — we use this to show local things to do near you.</span></span></label>
+          <label>Hometown<span class="info-icon" tabindex="0">i<span class="info-tooltip">Where you're based — we use this to find real events happening near you during each break.</span></span></label>
           <div class="combo">
-            <input type="text" id="hometown" placeholder="e.g. Karratha, WA" autocomplete="off" required>
+            <input type="text" id="hometown" placeholder="e.g. Perth, WA" autocomplete="off" required>
             <div class="combo-list" id="hometownList"></div>
           </div>
         </div>
@@ -646,6 +652,11 @@ async function refreshAuthState(){
 
 function renderAccountArea(){
   const area = document.getElementById('accountArea');
+  // Logged-out visitors only ever see two compact buttons (Log in / Create
+  // account), which comfortably fit on the same row as the logo even on a
+  // phone — so on mobile they stay inline with it instead of being forced
+  // onto their own full-width row like the busier logged-in nav bar needs.
+  document.querySelector('header').classList.toggle('anon', !authState.loggedIn);
   if(authState.loggedIn){
     // Logged-in users skip the marketing landing page entirely (see the
     // showView guard below), so all nav — My Breaks, Setup, Profile — lives
@@ -1713,7 +1724,7 @@ const HOMETOWN_OPTIONS = [
   'Toowoomba, QLD','Mackay, QLD','Rockhampton, QLD','Gladstone, QLD','Bundaberg, QLD',
   'Hervey Bay, QLD','Mount Isa, QLD','Emerald, QLD','Roma, QLD',
   'Perth, WA','Karratha, WA','Port Hedland, WA','South Hedland, WA','Newman, WA','Broome, WA',
-  'Kalgoorlie, WA','Geraldton, WA','Bunbury, WA','Albany, WA','Esperance, WA','Derby, WA',
+  'Kalgoorlie, WA','Geraldton, WA','Bunbury, WA','Busselton, WA','Albany, WA','Esperance, WA','Derby, WA',
   'Exmouth, WA','Tom Price, WA','Paraburdoo, WA',
   'Adelaide, SA','Whyalla, SA','Port Lincoln, SA','Mount Gambier, SA','Port Augusta, SA','Roxby Downs, SA',
   'Hobart, TAS','Launceston, TAS','Devonport, TAS','Burnie, TAS',
@@ -1736,7 +1747,7 @@ const AIRPORT_OPTIONS = [
   {code:'EMD', city:'Emerald, QLD'}, {code:'RMA', city:'Roma, QLD'},
   {code:'PER', city:'Perth, WA'}, {code:'KTA', city:'Karratha, WA'}, {code:'PHE', city:'Port Hedland, WA'},
   {code:'NWM', city:'Newman, WA'}, {code:'BME', city:'Broome, WA'}, {code:'KGI', city:'Kalgoorlie, WA'},
-  {code:'GET', city:'Geraldton, WA'}, {code:'ALH', city:'Albany, WA'}, {code:'EPR', city:'Esperance, WA'},
+  {code:'GET', city:'Geraldton, WA'}, {code:'BQB', city:'Busselton, WA'}, {code:'ALH', city:'Albany, WA'}, {code:'EPR', city:'Esperance, WA'},
   {code:'DRB', city:'Derby, WA'}, {code:'LEA', city:'Learmonth (Exmouth), WA'}, {code:'PBO', city:'Paraburdoo, WA'},
   {code:'TPR', city:'Tom Price, WA'},
   {code:'ADL', city:'Adelaide, SA'}, {code:'WYA', city:'Whyalla, SA'}, {code:'PLO', city:'Port Lincoln, SA'},

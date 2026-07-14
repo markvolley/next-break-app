@@ -1548,15 +1548,19 @@ async function renderDashboard(){
   }
 
   // Drop the open key if that break no longer exists (roster changed).
-  // Breaks load minimised — nothing auto-expands, and deals/events for a
-  // break aren't fetched until the user actually taps it open.
+  // Breaks load minimised — nothing auto-expands — but the soonest break's
+  // deals/events are still fetched quietly in the background (cache only,
+  // no re-render) so tapping it open feels instant instead of showing
+  // "Looking up deals…" every time.
   if(!currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = null;
 
   renderBreaksList();
-  if(openBreakKey){
-    if(!dealsCache[openBreakKey]) loadDeals(openBreakKey);
-    if(!eventsCache[openBreakKey]) loadEvents(openBreakKey);
-  }
+  const prefetchKeys = new Set([currentBreaks[0].key]);
+  if(openBreakKey) prefetchKeys.add(openBreakKey);
+  prefetchKeys.forEach(key => {
+    if(!dealsCache[key]) loadDeals(key);
+    if(!eventsCache[key]) loadEvents(key);
+  });
 }
 
 function toggleBreak(key){

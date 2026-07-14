@@ -59,12 +59,15 @@ const VIATOR_MCID = process.env.VIATOR_MCID || '';
 // sport, theatre) near a user's hometown during each specific break.
 const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY || '';
 
-// Operator-level, same pattern as TRAVELPAYOUTS_MARKER/VIATOR_PID — once
-// the Ticketmaster Affiliate Program application (via Impact) is approved,
-// paste the base tracking link Impact's dashboard gives you here (ending
-// in "?u=", see buildEventUrl in lib/ticketmaster.js for the full format).
-// Leave blank and event links go to the plain, non-commission Ticketmaster
-// page instead — still real, working links either way.
+// Optional manual override — you almost certainly don't need this. Once
+// your Ticketmaster Affiliate Program application (via Impact) is
+// approved, link your Impact Publisher ID directly in the Ticketmaster
+// developer portal (My Apps -> your app -> Affiliate IDs -> "Profile
+// Edit") — from then on, event URLs from the Discovery API already come
+// back commission-tracked automatically, no code-side wrapping needed.
+// This env var only matters if you'd rather route through a different
+// tracking link than Ticketmaster's own; see buildEventUrl in
+// lib/ticketmaster.js.
 const TICKETMASTER_AFFILIATE_LINK_PREFIX = process.env.TICKETMASTER_AFFILIATE_LINK_PREFIX || '';
 
 // Google Sign-In client ID. This is NOT a secret — it's meant to be public
@@ -512,10 +515,9 @@ async function buildEventsForBreak(brk, settings) {
   const breakEnd = toISO(brk.end);
   const events = found
     .filter(e => e.localDate >= breakStart && e.localDate <= breakEnd)
-    // Wraps each event's plain Ticketmaster URL in the Impact deep-link
-    // format if TICKETMASTER_AFFILIATE_LINK_PREFIX is configured — see
-    // buildEventUrl in lib/ticketmaster.js. No-ops (returns the plain URL
-    // unchanged) until the Affiliate Program application is approved.
+    // No-op unless TICKETMASTER_AFFILIATE_LINK_PREFIX is set — the normal
+    // path is Ticketmaster auto-tracking `url` once your Impact Publisher
+    // ID is linked in their developer portal, see the const above.
     .map(e => ({ ...e, url: buildEventUrl(e.url, TICKETMASTER_AFFILIATE_LINK_PREFIX) }));
 
   eventsCache.set(cacheKey, { events, fetchedAt: Date.now() });

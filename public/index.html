@@ -83,10 +83,17 @@
   .accordion-body{padding:0 18px 18px;border-top:1px solid var(--border);}
   .accordion-body .disclaimer{margin:16px 0;}
   .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
-  .deal-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;display:flex;flex-direction:column;}
+  /* overflow is intentionally NOT hidden on .deal-card — the "Quick trip"
+     tooltip inside .deal-tags-row needs to be able to pop outside the
+     card's box when it opens near the top. Rounding + clipping the photo
+     itself (image + gradient) is instead done by the inner .deal-photo-bg
+     layer below, so the image still gets rounded top corners without
+     trapping the tooltip inside a clipped ancestor. */
+  .deal-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);display:flex;flex-direction:column;}
   .deal-photo{position:relative;height:300px;display:flex;flex-direction:column;}
-  .deal-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:var(--border);}
-  .deal-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0) 35%, rgba(16,24,32,0.92) 100%);}
+  .deal-photo-bg{position:absolute;inset:0;border-radius:16px 16px 0 0;overflow:hidden;}
+  .deal-photo-bg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:var(--border);}
+  .deal-photo-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0) 35%, rgba(16,24,32,0.92) 100%);}
   .deal-photo .deal-tags-row{position:relative;z-index:2;align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;margin:14px 14px 0;}
   .deal-photo .region-tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);}
   .deal-photo .region-tag.domestic{background:rgba(244,238,227,0.85);color:#101820;}
@@ -1614,7 +1621,7 @@ function dealsMarkup(result){
     return `
     <div class="deal-card">
       <div class="deal-photo">
-        ${photo ? `<img src="${photo}" alt="" loading="lazy">` : ''}
+        <div class="deal-photo-bg">${photo ? `<img src="${photo}" alt="" loading="lazy">` : ''}</div>
         <div class="deal-tags-row">
           <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
           ${d.isQuickTrip ? `<div class="quick-trip-tag">Quick trip<span class="info-icon" tabindex="0">i<span class="info-tooltip">This fits your break, but it's a shorter trip than we'd usually call a full break away — ${d.nights} night${d.nights===1?'':'s'} once you count the flying time. Still a real, bookable fare if it works for you.</span></span></div>` : ''}

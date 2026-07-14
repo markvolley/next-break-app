@@ -113,6 +113,7 @@
   footer .footer-links a{color:var(--muted);text-decoration:none;}
   footer .footer-links a:hover{color:var(--text);}
   .disclaimer{background:var(--panel2);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+  .refreshed-tag{display:flex;width:max-content;max-width:100%;align-items:center;background:rgba(245,176,76,0.14);color:var(--accent2);font-weight:600;font-size:11.5px;padding:3px 9px;border-radius:var(--radius-pill);margin-top:8px;}
   .banner{padding:12px 16px;border-radius:14px;margin-bottom:18px;font-size:13.5px;display:flex;justify-content:space-between;align-items:center;gap:10px;opacity:1;transform:translateY(0);transition:opacity .22s ease, transform .22s ease;}
   .banner.fade-out{opacity:0;transform:translateY(-6px);}
   .banner.success{background:rgba(245,176,76,0.15);border:1px solid var(--accent);}
@@ -1075,6 +1076,20 @@ function fmtDateTime(isoWithOffset){
   return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
 }
 
+// Deals are cached server-side for 24h (see server.js buildDealsForBreak) —
+// this turns that cache timestamp into a friendly "how fresh is this"
+// label so it's visible the prices aren't refetched on every page load.
+function fmtRefreshed(iso){
+  if(!iso) return '';
+  const then = new Date(iso);
+  const mins = Math.round((Date.now() - then.getTime()) / 60000);
+  if(mins < 1) return 'just now';
+  if(mins < 60) return `${mins} min${mins===1?'':'s'} ago`;
+  const hours = Math.round(mins / 60);
+  if(hours < 24) return `${hours} hour${hours===1?'':'s'} ago`;
+  return then.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' at ' + then.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+}
+
 // ---------- account promo (dashboard, anonymous users only) ----------
 const ACCOUNT_PROMO_DISMISSED_KEY = 'nextbreak_account_promo_dismissed';
 
@@ -1431,8 +1446,12 @@ function dealsMarkup(result){
   `;
   }).join('');
 
+  const refreshed = fmtRefreshed(result.fetchedAt);
   return `
-    <div class="disclaimer">Prices are from recent searches, not live quotes — confirm the final price before booking.</div>
+    <div class="disclaimer">
+      Prices are from recent searches, not live quotes — confirm the final price before booking.
+      ${refreshed ? `<div class="refreshed-tag">Updated ${refreshed}<span class="info-icon" tabindex="0">i<span class="info-tooltip">We refresh cached prices for each break once a day, rather than looking them up on every visit — so you see consistent prices and we don't hammer the flight search API.</span></span></div>` : ''}
+    </div>
     <div class="deals-grid">${dealsHtml}</div>
   `;
 }

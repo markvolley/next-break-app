@@ -1227,7 +1227,9 @@ function scrollToSetup(){
 
 // ---------- dashboard ----------
 let currentBreaks = [];
-let openBreakKeys = new Set();
+// Only one break's accordion body can be expanded at a time — null means
+// none open.
+let openBreakKey = null;
 let realPricesAvailable = false;
 let currentRosterMode = 'pattern';
 let currentPattern = null;
@@ -1545,25 +1547,22 @@ async function renderDashboard(){
     return;
   }
 
-  // Drop any open keys for breaks that no longer exist (roster changed);
+  // Drop the open key if that break no longer exists (roster changed);
   // default to expanding just the soonest break the first time breaks load.
-  openBreakKeys = new Set([...openBreakKeys].filter(k => currentBreaks.some(b => b.key === k)));
-  if(openBreakKeys.size === 0) openBreakKeys.add(currentBreaks[0].key);
+  if(!currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = null;
+  if(!openBreakKey) openBreakKey = currentBreaks[0].key;
 
   renderBreaksList();
-  openBreakKeys.forEach(key => {
-    if(!dealsCache[key]) loadDeals(key);
-    if(!eventsCache[key]) loadEvents(key);
-  });
+  if(!dealsCache[openBreakKey]) loadDeals(openBreakKey);
+  if(!eventsCache[openBreakKey]) loadEvents(openBreakKey);
 }
 
 function toggleBreak(key){
-  if(openBreakKeys.has(key)){
-    openBreakKeys.delete(key);
-  }else{
-    openBreakKeys.add(key);
-    if(!dealsCache[key]) loadDeals(key);
-    if(!eventsCache[key]) loadEvents(key);
+  // Opening one break closes whichever other one was open — only one at a time.
+  openBreakKey = (openBreakKey === key) ? null : key;
+  if(openBreakKey){
+    if(!dealsCache[openBreakKey]) loadDeals(openBreakKey);
+    if(!eventsCache[openBreakKey]) loadEvents(openBreakKey);
   }
   renderBreaksList();
 }
@@ -1578,7 +1577,7 @@ async function loadDeals(key){
     dealsCache[key] = { error: e.message };
   }
   dealsLoading[key] = false;
-  if(openBreakKeys.has(key)) renderBreaksList();
+  if(openBreakKey === key) renderBreaksList();
 }
 
 // Ticketmaster events near hometown for this break — separate cache from
@@ -1597,7 +1596,7 @@ async function loadEvents(key){
     eventsCache[key] = { error: e.message, events: [] };
   }
   eventsLoading[key] = false;
-  if(openBreakKeys.has(key)) renderBreaksList();
+  if(openBreakKey === key) renderBreaksList();
 }
 
 // "9 days away", "Starts tomorrow", "Happening now" — pulls straight from
@@ -1677,7 +1676,7 @@ function renderBreaksList(){
     : '';
 
   container.innerHTML = currentBreaks.slice(0, 6).map(b => {
-    const isOpen = openBreakKeys.has(b.key);
+    const isOpen = openBreakKey === b.key;
     let bodyHtml = '';
     if(isOpen){
       const cached = dealsCache[b.key];

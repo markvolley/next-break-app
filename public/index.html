@@ -353,6 +353,12 @@
         <span>I agree to the <a href="/terms.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Terms and Conditions</a></span>
       </label>
     </div>
+    <div id="authMarketingField" style="display:none;margin-top:10px;">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;color:var(--muted);font-size:13px;margin:0;">
+        <input type="checkbox" id="authMarketingOptIn" style="margin-top:3px;width:auto;">
+        <span>Email me about new deals and Next Break updates (optional)</span>
+      </label>
+    </div>
     <div class="auth-error" id="authError"></div>
     <div class="auth-success" id="authSuccess" style="color:var(--accent);font-size:12.5px;margin-top:10px;line-height:1.4;"></div>
     <button class="btn" id="authSubmitBtn" onclick="submitAuthForm()">Log in</button>
@@ -481,6 +487,13 @@
 
       <label>Email</label>
       <input type="text" id="profileEmail" disabled style="opacity:.65;">
+
+      <div style="margin-top:16px;">
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;color:var(--text);font-size:13px;margin:0;">
+          <input type="checkbox" id="profileMarketingOptIn" style="margin-top:3px;width:auto;">
+          <span>Email me about new deals and Next Break updates</span>
+        </label>
+      </div>
 
       <div class="auth-error" id="profileError"></div>
       <div style="margin-top:20px;">
@@ -628,6 +641,10 @@ function setAuthMode(mode){
   // end up creating a brand-new account, and the checkbox needs to be
   // visible and checkable before that happens.
   document.getElementById('authTermsField').style.display = (mode === 'signup' || (mode === 'login' && authState.googleClientId)) ? '' : 'none';
+  // Same visibility rule as terms — only relevant when an account might
+  // actually be created (signup tab, or a Google click from the login tab
+  // that turns out to be a first-time sign-in).
+  document.getElementById('authMarketingField').style.display = (mode === 'signup' || (mode === 'login' && authState.googleClientId)) ? '' : 'none';
   document.getElementById('authForgotLink').style.display = (mode === 'login') ? '' : 'none';
   document.getElementById('authBackLink').style.display = (mode === 'forgot' || mode === 'reset') ? '' : 'none';
   document.getElementById('googleDivider').style.display = (isLoginOrSignup && authState.googleClientId) ? '' : 'none';
@@ -694,7 +711,11 @@ async function submitAuthForm(){
   try{
     await api(authMode === 'login' ? '/api/auth/login' : '/api/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email, password, acceptedTerms: document.getElementById('authAcceptTerms').checked })
+      body: JSON.stringify({
+        email, password,
+        acceptedTerms: document.getElementById('authAcceptTerms').checked,
+        marketingOptIn: document.getElementById('authMarketingOptIn').checked
+      })
     });
     closeAuthModal();
     await refreshAuthState();
@@ -797,8 +818,9 @@ async function handleGoogleCredential(response){
   // brand-new account — the server ignores it entirely for an existing
   // account, so it's safe to always send its current state here.
   const acceptedTerms = document.getElementById('authAcceptTerms').checked;
+  const marketingOptIn = document.getElementById('authMarketingOptIn').checked;
   try{
-    await api('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential: response.credential, acceptedTerms }) });
+    await api('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential: response.credential, acceptedTerms, marketingOptIn }) });
     closeAuthModal();
     await refreshAuthState();
     showBanner('success', 'Logged in with Google.');
@@ -844,6 +866,7 @@ async function fillProfileForm(){
   }
   document.getElementById('profileDisplayName').value = profile.displayName || '';
   document.getElementById('profileEmail').value = profile.email;
+  document.getElementById('profileMarketingOptIn').checked = !!profile.marketingOptIn;
   renderAvatarPreview(profile.avatarUrl, profile.displayName, profile.email);
 
   document.getElementById('interestsError').textContent = '';
@@ -894,8 +917,9 @@ async function saveProfile(){
   const errEl = document.getElementById('profileError');
   errEl.textContent = '';
   const displayName = document.getElementById('profileDisplayName').value.trim();
+  const marketingOptIn = document.getElementById('profileMarketingOptIn').checked;
 
-  const body = { displayName };
+  const body = { displayName, marketingOptIn };
   if(pendingAvatarDataUrl) body.avatarDataUrl = pendingAvatarDataUrl;
 
   const btn = document.getElementById('saveProfileBtn');

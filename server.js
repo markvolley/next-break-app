@@ -15,7 +15,7 @@ import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
   setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
-  setAccountProfile, _dataFilePath
+  setAccountProfile, listAccounts, recordDealClick, listDealClicks, _dataFilePath
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
@@ -65,6 +65,16 @@ const EMAIL_FROM = process.env.EMAIL_FROM || 'Next Break <onboarding@resend.dev>
 
 const SESSION_COOKIE = 'nb_session';
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Admin dashboard access — comma-separated list of emails allowed to load
+// /api/admin/stats and public/admin.html. Not a separate password system;
+// it piggybacks on the normal login session, so whoever's logged in as one
+// of these emails can see it and nobody else can. Leave unset in an
+// environment and the dashboard is fully disabled (403 for everyone).
+const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
 
 // Avatars live next to data.json on the same persistent disk (whatever
 // directory DATA_FILE points at — /data on Render, project root locally),
@@ -399,7 +409,12 @@ async function handleSignup(req, res, deviceId) {
   if (body.acceptedTerms !== true) return sendJson(res, 400, { error: 'You must accept the Terms and Conditions to create an account.' });
   if (getAccount(email)) return sendJson(res, 409, { error: 'An account with that email already exists — try logging in instead.' });
 
-  createAccount(email, { passwordHash: hashPassword(password), termsAcceptedAt: new Date().toISOString(), termsVersion: TERMS_VERSION });
+  createAccount(email, {
+    passwordHash: hashPassword(password),
+    termsAcceptedAt: new Date().toISOString(),
+    termsVersion: TERMS_VERSION,
+    marketingOptIn: body.marketingOptIn === true
+  });
   if (deviceId) migrateUser(deviceId, email);
 
   const token = createSessionToken();
@@ -444,7 +459,9 @@ async function handleGoogleAuth(req, res, deviceId) {
     return sendJson(res, 400, { error: 'You must accept the Terms and Conditions to create an account.' });
   }
 
-  upsertGoogleAccount(claims.email, claims.sub, isNewAccount ? { termsAcceptedAt: new Date().toISOString(), termsVersion: TERMS_VERSION } : {});
+  upsertGoogleAccount(claims.email, claims.sub, isNewAccount
+    ? { termsAcceptedAt: new Date().toISOString(), termsVersion: TERMS_VERSION, marketingOptIn: body.marketingOptIn === true }
+    : {});
   if (deviceId) migrateUser(deviceId, claims.email);
 
   const token = createSessionToken();
@@ -533,7 +550,7 @@ async function handleGetProfile(req, res) {
   const email = requireSessionEmail(req, res);
   if (!email) return;
   const account = getAccount(email);
-  sendJson(res, 200, { email, displayName: account?.displayName || '', avatarUrl: account?.avatarUrl || null });
+  sendJson(res, 200, { email, displayName: account?.displayName || '', avatarUrl: account?.avatarUrl || null, marketingOptIn: !!account?.marketingOptIn });
 }
 
 async function handlePutProfile(req, res) {
@@ -558,6 +575,10 @@ async function handlePutProfile(req, res) {
   if (typeof body.displayName === 'string') {
     const name = body.displayName.trim().slice(0, 60);
     patch.displayName = name;
+  }
+
+  if (typeof body.marketingOptIn === 'boolean') {
+    patch.marketingOptIn = body.marketingOptIn;
   }
 
   if (typeof body.avatarDataUrl === 'string' && body.avatarDataUrl.length) {
@@ -587,7 +608,7 @@ async function handlePutProfile(req, res) {
   }
 
   const updated = setAccountProfile(email, patch);
-  sendJson(res, 200, { email, displayName: updated?.displayName || '', avatarUrl: updated?.avatarUrl || null });
+  sendJson(res, 200, { email, displayName: updated?.displayName || '', avatarUrl: updated?.avatarUrl || null, marketingOptIn: !!updated?.marketingOptIn });
 }
 
 // ---------- route handlers ----------
@@ -670,6 +691,12 @@ async function handleDealClick(req, res) {
   const affinity = { ...(settings.dealAffinity || {}) };
   for (const tag of dest.tags || []) affinity[tag] = (affinity[tag] || 0) + 1;
   saveSettings(email, { dealAffinity: affinity });
+
+  // Separate from the affinity nudge above — this is a durable, aggregate
+  // log for the admin dashboard (which destinations get clicked, by whom,
+  // when), not something used to steer deal selection.
+  recordDealClick(email, { iata: dest.iata, name: dest.name });
+
   sendJson(res, 200, { ok: true });
 }
 
@@ -677,6 +704,71 @@ async function handleGetActivities(req, res, userId) {
   const settings = getSettings(userId);
   const { source, activities } = await buildActivitiesForSettings(settings);
   sendJson(res, 200, { source, hometown: settings.hometown || '', activities });
+}
+
+// ---------- admin dashboard ----------
+// Not a separate login — reuses the normal session cookie and just checks
+// the logged-in email against ADMIN_EMAILS (see const above). Returns 401
+// if nobody's logged in, 403 if they're logged in as someone who isn't an
+// admin, so a regular user hitting these routes by accident/curiosity gets
+// a clear "not authorized" rather than leaking whether the route exists.
+function requireAdminEmail(req, res) {
+  const email = requireSessionEmail(req, res); // sends its own 401 if not logged in
+  if (!email) return null;
+  if (!ADMIN_EMAILS.length || !ADMIN_EMAILS.includes(email.toLowerCase())) {
+    sendJson(res, 403, { error: 'Not authorized.' });
+    return null;
+  }
+  return email;
+}
+
+async function handleAdminStats(req, res) {
+  const email = requireAdminEmail(req, res);
+  if (!email) return;
+
+  const accounts = listAccounts();
+  const clicks = listDealClicks();
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const withinDays = (iso, days) => {
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) && now - t <= days * DAY_MS;
+  };
+
+  const byDestination = new Map();
+  for (const c of clicks) {
+    const key = c.iata || 'unknown';
+    if (!byDestination.has(key)) byDestination.set(key, { iata: key, name: c.name || key, count: 0 });
+    byDestination.get(key).count++;
+  }
+  const topDestinations = [...byDestination.values()].sort((a, b) => b.count - a.count).slice(0, 10);
+
+  const recentSignups = [...accounts]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 25)
+    .map(a => ({ email: a.email, createdAt: a.createdAt, marketingOptIn: !!a.marketingOptIn, signedUpVia: a.hasGoogle ? 'Google' : 'Password' }));
+
+  const recentClicks = [...clicks]
+    .sort((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, 25);
+
+  sendJson(res, 200, {
+    accounts: {
+      total: accounts.length,
+      last7Days: accounts.filter(a => withinDays(a.createdAt, 7)).length,
+      last30Days: accounts.filter(a => withinDays(a.createdAt, 30)).length,
+      marketingOptIn: accounts.filter(a => a.marketingOptIn).length
+    },
+    dealClicks: {
+      total: clicks.length,
+      last7Days: clicks.filter(c => withinDays(c.at, 7)).length,
+      last30Days: clicks.filter(c => withinDays(c.at, 30)).length,
+      topDestinations
+    },
+    recentSignups,
+    recentClicks
+  });
 }
 
 async function handleCheckout(req, res, userId) {
@@ -813,6 +905,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/profile' && req.method === 'GET') return await handleGetProfile(req, res);
       if (pathname === '/api/profile' && req.method === 'PUT') return await handlePutProfile(req, res);
       if (pathname === '/api/deal-click' && req.method === 'POST') return await handleDealClick(req, res);
+      if (pathname === '/api/admin/stats' && req.method === 'GET') return await handleAdminStats(req, res);
 
       const userId = maybeUserId;
       if (!userId) return sendJson(res, 400, { error: 'Missing X-User-Id header.' });
@@ -849,6 +942,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);
+    console.log(`Admin dashboard: ${ADMIN_EMAILS.length ? `configured for ${ADMIN_EMAILS.join(', ')}` : 'NOT configured (set ADMIN_EMAIL in .env — /admin.html will 403 for everyone until then)'}`);
   });
 }
 

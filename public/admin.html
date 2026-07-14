@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Next Break — Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/logo-favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Same "Last Light" palette as the main app, kept as a separate
+     standalone page rather than folded into index.html's giant single-page
+     app — this is an operator-only tool, not part of the user-facing SPA,
+     and giving it its own tiny page keeps that boundary obvious. */
+  :root{
+    --bg:#101820; --bg-soft:#0b1218; --panel:#161f28; --panel2:#1b2a34; --border:rgba(244,238,227,0.16);
+    --text:#F4EEE3; --muted:rgba(244,238,227,0.6); --accent:#F5B04C; --accent-hover:#f4eee3; --accent2:#F5B04C;
+    --danger:#ff6b5b; --radius:14px; --radius-pill:999px;
+    --shadow:0 1px 2px rgba(4,8,12,0.3), 0 10px 28px rgba(4,8,12,0.45);
+    --font-head:'Bricolage Grotesque',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --font-body:'Bricolage Grotesque',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--font-body);color:var(--text);background:var(--bg);}
+  h1,h2,.btn{font-family:var(--font-head);}
+  header{position:sticky;top:0;z-index:10;background:rgba(10,26,32,0.85);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  header h1{font-size:19px;font-weight:800;letter-spacing:-.01em;margin:0;display:flex;align-items:center;gap:8px;}
+  header h1 .tag{background:linear-gradient(120deg, var(--accent), var(--accent2));color:#101820;font-size:11px;padding:3px 10px;border-radius:var(--radius-pill);font-weight:700;letter-spacing:.03em;}
+  header a{color:var(--muted);font-size:13px;text-decoration:none;}
+  main{max-width:1040px;margin:0 auto;padding:20px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin-bottom:20px;}
+  .panel h2{margin-top:0;font-size:16px;font-weight:700;letter-spacing:-.01em;}
+  .panel h2::after{content:'.';color:var(--accent2);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+  .card .n{font-size:28px;font-weight:800;letter-spacing:-.01em;}
+  .card .l{color:var(--muted);font-size:12.5px;margin-top:4px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--border);}
+  td{padding:9px 10px;border-bottom:1px solid var(--border);}
+  tr:last-child td{border-bottom:none;}
+  .pill{display:inline-block;background:rgba(245,176,76,0.16);color:var(--accent);font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:var(--radius-pill);}
+  .muted{color:var(--muted);}
+  .empty{color:var(--muted);font-size:14px;padding:20px 0;text-align:center;}
+  .btn{background:linear-gradient(135deg, var(--accent), var(--accent-hover));color:#101820;border:none;padding:10px 18px;border-radius:var(--radius-pill);font-weight:700;cursor:pointer;font-size:13.5px;}
+  .btn.secondary{background:none;border:1px solid var(--border);color:var(--text);font-weight:600;}
+  .state-msg{color:var(--muted);font-size:14px;line-height:1.6;padding:40px 20px;text-align:center;}
+  .table-wrap{overflow-x:auto;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Next Break <span class="tag">Admin</span></h1>
+  <a href="/">← Back to app</a>
+</header>
+
+<main>
+  <div id="stateMsg" class="state-msg" style="display:none;"></div>
+
+  <div id="dashboard" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;gap:10px;align-items:center;">
+      <span class="muted" id="lastUpdated" style="font-size:12.5px;"></span>
+      <button class="btn secondary" onclick="loadStats()">Refresh</button>
+    </div>
+
+    <div class="cards">
+      <div class="card"><div class="n" id="cAccountsTotal">–</div><div class="l">Total sign-ups</div></div>
+      <div class="card"><div class="n" id="cAccounts7">–</div><div class="l">New in last 7 days</div></div>
+      <div class="card"><div class="n" id="cAccounts30">–</div><div class="l">New in last 30 days</div></div>
+      <div class="card"><div class="n" id="cMarketingOptIn">–</div><div class="l">Opted in to marketing</div></div>
+      <div class="card"><div class="n" id="cClicksTotal">–</div><div class="l">Total deal clicks</div></div>
+      <div class="card"><div class="n" id="cClicks7">–</div><div class="l">Clicks in last 7 days</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Top destinations by clicks</h2>
+      <div class="table-wrap">
+        <table id="topDestTable">
+          <thead><tr><th>Destination</th><th>IATA</th><th>Clicks</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="topDestEmpty" style="display:none;">No deal clicks recorded yet.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent sign-ups</h2>
+      <div class="table-wrap">
+        <table id="signupsTable">
+          <thead><tr><th>Email</th><th>Signed up</th><th>Via</th><th>Marketing</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="signupsEmpty" style="display:none;">No sign-ups yet.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent deal clicks</h2>
+      <div class="table-wrap">
+        <table id="clicksTable">
+          <thead><tr><th>Email</th><th>Destination</th><th>When</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="clicksEmpty" style="display:none;">No deal clicks recorded yet.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+function fmtDateTime(iso){
+  if(!iso) return '–';
+  try{
+    return new Date(iso).toLocaleString(undefined, { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }catch(e){ return iso; }
+}
+
+function showState(msg){
+  document.getElementById('dashboard').style.display = 'none';
+  const el = document.getElementById('stateMsg');
+  el.style.display = '';
+  el.innerHTML = msg;
+}
+
+function renderTable(bodyId, emptyId, rows, rowFn){
+  const tbody = document.querySelector('#' + bodyId + ' tbody');
+  const empty = document.getElementById(emptyId);
+  if(!rows.length){
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(rowFn).join('');
+}
+
+async function loadStats(){
+  let res;
+  try{
+    res = await fetch('/api/admin/stats', { headers: { 'Content-Type': 'application/json' } });
+  }catch(e){
+    showState('Could not reach the server. Try refreshing.');
+    return;
+  }
+
+  if(res.status === 401){
+    showState('You need to be logged in as the admin account to view this page.<br><br><a class="btn" href="/">Go to Next Break and log in</a>');
+    return;
+  }
+  if(res.status === 403){
+    showState('This account is not authorized to view the admin dashboard.');
+    return;
+  }
+  if(!res.ok){
+    showState('Something went wrong loading stats (HTTP ' + res.status + ').');
+    return;
+  }
+
+  const data = await res.json();
+
+  document.getElementById('dashboard').style.display = '';
+  document.getElementById('stateMsg').style.display = 'none';
+  document.getElementById('lastUpdated').textContent = 'Updated ' + fmtDateTime(new Date().toISOString());
+
+  document.getElementById('cAccountsTotal').textContent = data.accounts.total;
+  document.getElementById('cAccounts7').textContent = data.accounts.last7Days;
+  document.getElementById('cAccounts30').textContent = data.accounts.last30Days;
+  document.getElementById('cMarketingOptIn').textContent = data.accounts.marketingOptIn;
+  document.getElementById('cClicksTotal').textContent = data.dealClicks.total;
+  document.getElementById('cClicks7').textContent = data.dealClicks.last7Days;
+
+  renderTable('topDestTable', 'topDestEmpty', data.dealClicks.topDestinations, d =>
+    `<tr><td>${d.name}</td><td class="muted">${d.iata}</td><td><span class="pill">${d.count}</span></td></tr>`
+  );
+
+  renderTable('signupsTable', 'signupsEmpty', data.recentSignups, a =>
+    `<tr><td>${a.email}</td><td class="muted">${fmtDateTime(a.createdAt)}</td><td class="muted">${a.signedUpVia}</td><td>${a.marketingOptIn ? '✓' : ''}</td></tr>`
+  );
+
+  renderTable('clicksTable', 'clicksEmpty', data.recentClicks, c =>
+    `<tr><td>${c.email}</td><td>${c.name || c.iata || '–'}</td><td class="muted">${fmtDateTime(c.at)}</td></tr>`
+  );
+}
+
+loadStats();
+</script>
+
+</body>
+</html>

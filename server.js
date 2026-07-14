@@ -220,25 +220,52 @@ function presentBreak(brk, settings) {
 // card. We deliberately do NOT fall back to invented prices with a Google
 // search link — a made-up price that doesn't earn commission when clicked
 // isn't more useful to the user than an honest "nothing cached yet."
+//
+// Real fares are cached in memory per (origin, break, currency) for 24
+// hours — the same break shows the same deals all day rather than firing a
+// fresh batch of Travelpayouts lookups on every dashboard load, and the
+// deals refresh automatically once the cache entry goes stale. Failed
+// lookups are never cached, so a transient error gets retried on the very
+// next request instead of showing "no deals" for a full day.
+const DEALS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const dealsCache = new Map(); // `${origin}|${breakKey}|${currency}` -> { data, fetchedAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of dealsCache) {
+    if (now - entry.fetchedAt > DEALS_CACHE_TTL_MS) dealsCache.delete(key);
+  }
+}, 60 * 60 * 1000).unref();
+
 async function buildDealsForBreak(brk, settings) {
   const currency = (settings.currency || 'AUD').toLowerCase();
 
   if (!TRAVELPAYOUTS_TOKEN || !settings.originAirport) {
-    return { source: 'not-configured', deals: [] };
+    return { source: 'not-configured', deals: [], fetchedAt: null };
+  }
+
+  const origin = settings.originAirport.toUpperCase();
+  const cacheKey = `${origin}|${brk.key}|${currency}`;
+  const cached = dealsCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < DEALS_CACHE_TTL_MS) {
+    return { ...cached.data, fetchedAt: new Date(cached.fetchedAt).toISOString() };
   }
 
   try {
     const real = await findRealDeals({
       token: TRAVELPAYOUTS_TOKEN,
       marker: TRAVELPAYOUTS_MARKER,
-      origin: settings.originAirport.toUpperCase(),
+      origin,
       currency,
       brk
     });
-    return { source: real.length ? 'real' : 'no-results', deals: real };
+    const fetchedAt = Date.now();
+    const data = { source: real.length ? 'real' : 'no-results', deals: real };
+    dealsCache.set(cacheKey, { data, fetchedAt });
+    return { ...data, fetchedAt: new Date(fetchedAt).toISOString() };
   } catch (e) {
     console.error('[travelpayouts] findRealDeals threw:', e.message);
-    return { source: 'no-results', deals: [] };
+    return { source: 'no-results', deals: [], fetchedAt: null };
   }
 }
 
@@ -510,8 +537,8 @@ async function handleGetDeals(req, res, userId, query) {
   const brk = breaks.find(b => b.key === breakKey);
   if (!brk) return sendJson(res, 404, { error: 'That break no longer matches your current roster.' });
 
-  const { source, deals } = await buildDealsForBreak(brk, settings);
-  sendJson(res, 200, { breakKey, source, currencySymbol: CURRENCY_SYMBOLS[settings.currency] || 'A$', deals });
+  const { source, deals, fetchedAt } = await buildDealsForBreak(brk, settings);
+  sendJson(res, 200, { breakKey, source, currencySymbol: CURRENCY_SYMBOLS[settings.currency] || 'A$', deals, fetchedAt });
 }
 
 async function handleGetActivities(req, res, userId) {

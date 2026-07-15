@@ -66,6 +66,12 @@
   .btn{background:linear-gradient(135deg, var(--accent), var(--accent-hover));color:#101820;border:none;padding:12px 22px;border-radius:var(--radius-pill);font-weight:700;cursor:pointer;font-size:14px;min-height:44px;box-shadow:0 4px 16px rgba(245,176,76,0.3);}
   .btn:hover:not(:disabled){background:linear-gradient(135deg, var(--accent-hover), var(--accent-hover));}
   .btn.secondary{background:none;border:1px solid var(--border);color:var(--text);font-weight:600;box-shadow:none;}
+  /* .btn:hover sets a solid cream background (var(--accent-hover)) — fine
+     for the mango CTA where the hover text is dark, but .btn.secondary's
+     text is that same cream colour, so without this override the button
+     goes near-invisible (cream text on cream background) on hover. A soft
+     translucent overlay keeps the existing border/text visible instead. */
+  .btn.secondary:hover:not(:disabled){background:rgba(244,238,227,0.12);}
   .btn.small{padding:7px 14px;font-size:12.5px;min-height:36px;}
   .btn.danger{background:none;border:1px solid var(--danger);color:var(--danger);box-shadow:none;}
   .btn:disabled{opacity:.5;cursor:not-allowed;}
@@ -283,6 +289,7 @@
   /* ---------- break selector + photo deal cards ---------- */
   .break-select-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:4px;}
   .break-select-row h2{margin:0;}
+  .break-select-row-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
   .break-projected{color:var(--muted);font-size:13px;}
   #breaksList{margin-top:16px;}
   .break-row .days-badge{font-size:12.5px;font-weight:700;padding:5px 12px;border-radius:var(--radius-pill);white-space:nowrap;}
@@ -518,10 +525,12 @@
     <div class="panel">
       <div class="break-select-row">
         <h2 id="breakHeading">Upcoming breaks</h2>
-        <div class="break-projected" id="breakProjected"></div>
+        <div class="break-select-row-right">
+          <div class="break-projected" id="breakProjected"></div>
+          <button class="btn secondary small" id="calendarSetupBtn" onclick="setUpCalendarFeed()">📅 Sync to calendar</button>
+        </div>
       </div>
       <div id="breaksList"></div>
-      <button class="btn secondary small" id="calendarSetupBtn" style="margin-top:14px;" onclick="setUpCalendarFeed()">📅 Sync to calendar</button>
       <div id="calendarBox" class="calendar-box" style="display:none;">
         <label style="margin-top:0;">Subscribe link (paste into Google/Apple/Outlook calendar)</label>
         <input type="text" id="calendarUrl" readonly onclick="this.select()">

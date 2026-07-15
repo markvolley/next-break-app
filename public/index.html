@@ -410,7 +410,7 @@
   <div class="hero-overlay">
     <div class="hero-text">
       <h1 class="hero-title">Make every break count<span style="color:var(--accent2);">.</span></h1>
-      <p class="hero-sub">We'll find real flight deals and real events happening near you, matched to your roster's next break — all about maximising your time off.</p>
+      <p class="hero-sub">We'll find real flight deals and real events happening near you, matched to your roster's next break, all about maximising your time off.</p>
     </div>
     <div class="hero-cta-block">
       <button class="btn cta-mango" onclick="scrollToSetup()">See my deals</button>
@@ -422,7 +422,7 @@
   <div class="modal">
     <button class="modal-close" onclick="closeAuthModal()">✕</button>
     <h2 id="authTitle">Sign in to Next Break</h2>
-    <div class="hint" style="margin-top:0;" id="authSubtitle">Save your setup to an account so it's there next time — on any device.</div>
+    <div class="hint" style="margin-top:0;" id="authSubtitle">Save your setup to an account, so it's there next time on any device.</div>
     <div class="auth-toggle" id="authToggle">
       <button id="authModeLogin" onclick="setAuthMode('login')">Log in</button>
       <button id="authModeSignup" onclick="setAuthMode('signup')">Sign up</button>
@@ -496,7 +496,7 @@
 
       <div class="swing-row">
         <div class="swing-field">
-          <label>Hometown<span class="info-icon" tabindex="0">i<span class="info-tooltip">Where you're based — we use this to find real events happening near you during each break.</span></span></label>
+          <label>Hometown<span class="info-icon" tabindex="0">i<span class="info-tooltip">Where you're based. We use this to find real events happening near you during each break.</span></span></label>
           <div class="combo">
             <input type="text" id="hometown" placeholder="e.g. Perth, WA" autocomplete="off" required>
             <div class="combo-list" id="hometownList"></div>
@@ -515,7 +515,7 @@
             <input type="number" id="daysOn" min="1" value="14" required>
           </div>
           <div class="swing-field">
-            <label>Days off<span class="info-icon" tabindex="0">i<span class="info-tooltip">How many consecutive days off you get each cycle — this is the length of each break.</span></span></label>
+            <label>Days off<span class="info-icon" tabindex="0">i<span class="info-tooltip">How many consecutive days off you get each cycle. This is the length of each break.</span></span></label>
             <input type="number" id="daysOff" min="1" value="7" required>
           </div>
           <div class="swing-field">
@@ -559,14 +559,14 @@
       <div id="calendarBox" class="calendar-box" style="display:none;">
         <label style="margin-top:0;">Subscribe link (paste into Google/Apple/Outlook calendar)</label>
         <input type="text" id="calendarUrl" readonly onclick="this.select()">
-        <div class="hint" style="margin-top:8px;">Subscribing keeps this synced automatically as your roster changes — no need to re-download.</div>
+        <div class="hint" style="margin-top:8px;">Subscribing keeps this synced automatically as your roster changes, so there's no need to re-download.</div>
         <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn secondary small" onclick="copyCalendarUrl()">Copy link</button>
           <a class="btn secondary small" id="calendarDownloadLink" href="#" download="next-break.ics" style="text-decoration:none;">Download .ics file</a>
         </div>
         <div class="auth-success" id="calendarCopyMsg" style="color:var(--accent);font-size:12.5px;margin-top:10px;"></div>
 
-        <div class="hint" style="margin-top:16px;">On your phone, the quickest way is just tapping "Download .ics file" — your phone will offer to add it straight to your calendar app. Want it to stay synced automatically as your roster changes? Use the subscribe link above:</div>
+        <div class="hint" style="margin-top:16px;">On your phone, the quickest way is just tapping "Download .ics file". Your phone will offer to add it straight to your calendar app. Want it to stay synced automatically as your roster changes? Use the subscribe link above:</div>
         <div class="mode-toggle small" id="calendarHowToTabs" style="margin-top:10px;">
           <button type="button" class="active" data-platform="google" onclick="setCalendarHowTo('google')">Google Calendar</button>
           <button type="button" data-platform="apple" onclick="setCalendarHowTo('apple')">Apple Calendar</button>
@@ -611,7 +611,7 @@
 
     <div class="panel">
       <h2>Trip interests</h2>
-      <p class="interests-hint">Tell us what kind of trips you're into and we'll lean toward matching deals when the price is close — never a pricier fare just because it fits, we'll only ever nudge among deals within a similar price.</p>
+      <p class="interests-hint">Tell us what kind of trips you're into and we'll lean toward matching deals when the price is close. We'll never pick a pricier fare just because it fits; we only ever nudge among deals within a similar price.</p>
       <div class="interest-chips" id="interestChips"></div>
       <div class="auth-error" id="interestsError"></div>
       <div style="margin-top:16px;">
@@ -624,7 +624,7 @@
   <div id="view-stats" style="display:none;">
     <div class="panel">
       <h2>Your stats</h2>
-      <div class="hint" style="margin-top:0;">Built from your actual roster and the deals you've clicked into — not projections.</div>
+      <div class="hint" style="margin-top:0;">Built from your actual roster and the deals you've clicked into, not projections.</div>
       <div class="stat-cards" style="margin-top:16px;">
         <div class="stat-card"><div class="n" id="statUpcoming">–</div><div class="l">Upcoming breaks</div></div>
         <div class="stat-card"><div class="n" id="statNextIn">–</div><div class="l">Days to next break</div></div>
@@ -636,7 +636,7 @@
 
     <div class="panel">
       <h2>Your next break</h2>
-      <div id="statNextBreak" class="empty">No upcoming break set yet — check your Setup.</div>
+      <div id="statNextBreak" class="empty">No upcoming break set yet. Check your Setup.</div>
     </div>
 
     <div class="panel">
@@ -792,8 +792,8 @@ function setAuthMode(mode){
 
   const titles = { login: 'Sign in to Next Break', signup: 'Create your account', forgot: 'Reset your password', reset: 'Set a new password' };
   const subtitles = {
-    login: "Save your setup to an account so it's there next time — on any device.",
-    signup: "Save your setup to an account so it's there next time — on any device.",
+    login: "Save your setup to an account, so it's there next time on any device.",
+    signup: "Save your setup to an account, so it's there next time on any device.",
     forgot: "Enter your email and we'll send you a link to reset your password.",
     reset: 'Choose a new password for your account.'
   };
@@ -859,7 +859,7 @@ async function submitAuthForm(){
     });
     closeAuthModal();
     await refreshAuthState();
-    showBanner('success', authMode === 'login' ? 'Logged in.' : 'Account created — your setup is now saved to this account.');
+    showBanner('success', authMode === 'login' ? 'Logged in.' : 'Account created. Your setup is now saved to this account.');
     await showView(currentView);
   }catch(e){
     errEl.textContent = e.message;
@@ -916,7 +916,7 @@ async function submitResetPassword(){
     window.history.replaceState({}, '', url);
     setAuthMode('login');
     document.getElementById('authSuccess').textContent = '';
-    showBanner('success', 'Password updated — log in with your new password.');
+    showBanner('success', 'Password updated. Log in with your new password.');
   }catch(e){
     errEl.textContent = e.message;
   }finally{
@@ -1039,7 +1039,7 @@ function handleAvatarFileChange(input){
     return;
   }
   if(file.size > 2 * 1024 * 1024){
-    errEl.textContent = 'Image is too large — please use one under 2MB.';
+    errEl.textContent = 'Image is too large. Please use one under 2MB.';
     input.value = '';
     return;
   }
@@ -1049,7 +1049,7 @@ function handleAvatarFileChange(input){
     pendingAvatarDataUrl = reader.result;
     document.getElementById('avatarPreview').innerHTML = `<img src="${pendingAvatarDataUrl}" alt="">`;
   };
-  reader.onerror = () => { errEl.textContent = 'Could not read that file — please try another image.'; };
+  reader.onerror = () => { errEl.textContent = 'Could not read that file. Please try another image.'; };
   reader.readAsDataURL(file);
 }
 
@@ -1324,7 +1324,7 @@ async function saveInterests(){
   setBtnBusy(btn, true, 'Saving…');
   try{
     await api('/api/settings', { method: 'PUT', body: JSON.stringify({ interests: [...selectedInterests] }) });
-    showBanner('success', 'Interests saved — we\'ll start factoring these into your deals.');
+    showBanner('success', 'Interests saved. We\'ll start factoring these into your deals.');
   }catch(e){
     errEl.textContent = 'Could not save: ' + e.message;
   }finally{
@@ -1348,7 +1348,7 @@ function renderInterestsPromo(hasInterests){
   el.innerHTML = `
     <div class="content" style="min-width:100%;">
       <h3>What kind of trips are you into?</h3>
-      <p class="interests-hint" style="margin:0 0 4px;">Pick a few — we'll lean toward matching deals when the price is close.</p>
+      <p class="interests-hint" style="margin:0 0 4px;">Pick a few and we'll lean toward matching deals when the price is close.</p>
       <div class="interest-chips" id="dashboardInterestChips"></div>
     </div>
     <div class="actions" style="width:100%;justify-content:flex-end;margin-top:12px;">
@@ -1485,7 +1485,7 @@ function copyCalendarUrl(){
       msg.textContent = 'Copied!';
       setTimeout(() => { msg.textContent = ''; }, 2000);
     }).catch(() => {
-      msg.textContent = 'Could not copy — select the link above and copy manually.';
+      msg.textContent = 'Could not copy. Select the link above and copy manually.';
     });
   }else{
     document.execCommand('copy');
@@ -1530,7 +1530,7 @@ async function renderStats(){
     `;
   }else{
     nextEl.className = 'empty';
-    nextEl.textContent = 'No upcoming break set yet — check your Setup.';
+    nextEl.textContent = 'No upcoming break set yet. Check your Setup.';
   }
 
   const destList = document.getElementById('statTopDest');
@@ -1599,7 +1599,7 @@ async function renderDashboard(){
   if(currentBreaks.length === 0){
     document.getElementById('breakHeading').textContent = 'Upcoming breaks';
     document.getElementById('breakProjected').textContent = '';
-    document.getElementById('breaksList').innerHTML = '<div class="empty">No upcoming breaks yet — head to Setup to add your roster.</div>';
+    document.getElementById('breaksList').innerHTML = '<div class="empty">No upcoming breaks yet. Head to Setup to add your roster.</div>';
     return;
   }
 
@@ -1825,7 +1825,7 @@ function setupCombo(inputEl, listEl, options, {matches, render, onSelect}){
     currentMatches = q ? options.filter(o => matches(o, q)).slice(0, 8) : options.slice(0, 8);
     activeIndex = -1;
     if(!currentMatches.length){
-      listEl.innerHTML = '<div class="combo-empty">No matches — you can still type your own.</div>';
+      listEl.innerHTML = '<div class="combo-empty">No matches, but you can still type your own.</div>';
       listEl.classList.add('open');
       return;
     }
@@ -1925,7 +1925,7 @@ function weatherLine(w){
   const range = `${w.high}°/${w.low}°`;
   const tooltip = w.type === 'forecast'
     ? `Short-range forecast for this exact date (${w.label ? w.label.toLowerCase() + ', ' : ''}high/low in °C).`
-    : `This break is more than two weeks out, so a real forecast doesn't exist yet — this is the typical high/low for ${w.month}, averaged from the last 3 years of actual weather.`;
+    : `This break is more than two weeks out, so a real forecast doesn't exist yet. This is the typical high/low for ${w.month}, averaged from the last 3 years of actual weather.`;
   const label = w.type === 'forecast' ? (w.label || 'Forecast') : `Typical for ${w.month}`;
   // Rain is a separate signal from the type shown here: for a real
   // forecast it's this exact date's rain chance; further out (no forecast
@@ -1935,7 +1935,7 @@ function weatherLine(w){
   if(w.type === 'forecast' && w.rainLikely){
     rainBadge = `<span class="rain-badge" title="This date has a high chance of rain in the short-range forecast.">🌧️ Rain likely</span>`;
   } else if(w.type === 'typical' && w.rainySeason){
-    rainBadge = `<span class="rain-badge" title="Based on average rainfall for this time of year over the last 3 years — not a forecast for your exact dates.">🌧️ Rainy season</span>`;
+    rainBadge = `<span class="rain-badge" title="Based on average rainfall for this time of year over the last 3 years, not a forecast for your exact dates.">🌧️ Rainy season</span>`;
   }
   return `<div class="weather-line">${w.icon} ${range} <span class="weather-label">${label}</span>${rainBadge}<span class="info-icon" tabindex="0">i<span class="info-tooltip">${tooltip}</span></span></div>`;
 }
@@ -1964,7 +1964,7 @@ function tripFactsLine(d){
   const tz = fmtTzDiff(d.tzDiffHours);
   if(tz) parts.push(`🕐 ${tz}`);
   if(!parts.length) return '';
-  return `<div class="trip-facts">${parts.join(' <span class="dot">·</span> ')}<span class="info-icon" tabindex="0">i<span class="info-tooltip">Distance is straight-line, and the time difference uses standard time (daylight saving isn't accounted for) — both approximate, not for navigation.</span></span></div>`;
+  return `<div class="trip-facts">${parts.join(' <span class="dot">·</span> ')}<span class="info-icon" tabindex="0">i<span class="info-tooltip">Distance is straight-line, and the time difference uses standard time (daylight saving isn't accounted for). Both are approximate, not for navigation.</span></span></div>`;
 }
 
 // "While you're there" spending-money context for international deals only
@@ -1984,7 +1984,7 @@ function dealsMarkup(result){
   }
 
   if(result.source === 'no-results' || !result.deals.length){
-    return `<div class="disclaimer">No fares found yet for this route and these dates. Prices come from recent real searches, so this can change — worth checking back closer to your break.</div>`;
+    return `<div class="disclaimer">No fares found yet for this route and these dates. Prices come from recent real searches, so this can change. It's worth checking back closer to your break.</div>`;
   }
 
   const dealsHtml = result.deals.map(d => {
@@ -1996,7 +1996,7 @@ function dealsMarkup(result){
         <div class="deal-photo-bg">${photo ? `<img src="${photo}" alt="" loading="lazy">` : `<div class="deal-photo-fallback"><span>${d.iata}</span></div>`}</div>
         <div class="deal-tags-row">
           <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
-          ${d.isQuickTrip ? `<div class="quick-trip-tag">Quick trip<span class="info-icon" tabindex="0">i<span class="info-tooltip">This fits your break, but it's a shorter trip than we'd usually call a full break away — ${d.nights} night${d.nights===1?'':'s'} once you count the flying time. Still a real, bookable fare if it works for you.</span></span></div>` : ''}
+          ${d.isQuickTrip ? `<div class="quick-trip-tag">Quick trip<span class="info-icon" tabindex="0">i<span class="info-tooltip">This fits your break, but it's a shorter trip than we'd usually call a full break away: ${d.nights} night${d.nights===1?'':'s'} once you count the flying time. Still a real, bookable fare if it works for you.</span></span></div>` : ''}
         </div>
         <div class="deal-overlay-text">
           <div class="dest">${d.name}</div>
@@ -2020,13 +2020,13 @@ function dealsMarkup(result){
 
   const refreshed = fmtRefreshed(result.fetchedAt);
   const tags = [];
-  if(refreshed) tags.push(`<div class="refreshed-tag">Updated ${refreshed}<span class="info-icon" tabindex="0">i<span class="info-tooltip">We refresh cached prices for each break once a day, rather than looking them up on every visit — so you see consistent prices and we don't hammer the flight search API.</span></span></div>`);
-  if(result.personalized) tags.push(`<div class="refreshed-tag">Picked for you<span class="info-icon" tabindex="0">i<span class="info-tooltip">Based on the trip interests you've set (and what you've booked before), we'll lean toward a matching deal when it's priced close to the cheapest option — never a pricier one just because it fits.</span></span></div>`);
+  if(refreshed) tags.push(`<div class="refreshed-tag">Updated ${refreshed}<span class="info-icon" tabindex="0">i<span class="info-tooltip">We refresh cached prices for each break once a day, rather than looking them up on every visit. That way you see consistent prices and we don't hammer the flight search API.</span></span></div>`);
+  if(result.personalized) tags.push(`<div class="refreshed-tag">Picked for you<span class="info-icon" tabindex="0">i<span class="info-tooltip">Based on the trip interests you've set (and what you've booked before), we'll lean toward a matching deal when it's priced close to the cheapest option. Never a pricier one just because it fits.</span></span></div>`);
 
   return `
     <div class="disclaimer">
       <div class="disclaimer-row">
-        <span>Prices are from recent searches, not live quotes — confirm the final price before booking.</span>
+        <span>Prices are from recent searches, not live quotes. Confirm the final price before booking.</span>
         ${tags.join('')}
       </div>
     </div>
@@ -2048,7 +2048,7 @@ function eventsMarkup(result){
     <div class="events-section">
       <div class="events-section-head">
         <h3>🎟️ On near home during this break</h3>
-        <p>Real Ticketmaster listings — booked separately from your flight, above.</p>
+        <p>Real Ticketmaster listings, booked separately from your flight above.</p>
       </div>
       ${events.map(eventRow).join('')}
     </div>

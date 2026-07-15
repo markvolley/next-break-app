@@ -26,6 +26,7 @@ import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
 import { getWeatherForDate } from './lib/weather.js';
 import { routeContext } from './lib/geo.js';
 import { fetchExchangeRates, DEST_CURRENCY_BY_IATA, DEST_CURRENCY_SYMBOLS } from './lib/fx.js';
+import { buildHotelSearchUrl } from './lib/hotellook.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, createCalendarToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
 import { sendPasswordResetEmail } from './lib/email.js';
@@ -315,6 +316,19 @@ async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
   // needed) — see lib/geo.js for why DST isn't modelled here.
   for (const d of deals) Object.assign(d, routeContext(origin, d.iata));
   await attachExchangeContext(deals, settings.currency);
+  // Hotellook accommodation search link, same dates as the flight — see
+  // lib/hotellook.js for why this is a link builder, not a data lookup.
+  // Only populated once TRAVELPAYOUTS_MARKER is set (same marker used for
+  // flights, since it's account-wide, not program-specific) — null just
+  // means "no hotel link shown," never a broken one.
+  for (const d of deals) {
+    d.hotelUrl = TRAVELPAYOUTS_MARKER ? buildHotelSearchUrl({
+      destinationName: d.name,
+      checkIn: (d.departureAt || '').slice(0, 10),
+      checkOut: (d.returnAt || '').slice(0, 10),
+      marker: TRAVELPAYOUTS_MARKER
+    }) : null;
+  }
   return {
     source: cached.fares.length ? 'real' : 'no-results',
     deals,

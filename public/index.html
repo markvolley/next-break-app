@@ -128,9 +128,19 @@
   .deal-photo .price{font-weight:800;font-size:20px;color:var(--accent2);white-space:nowrap;flex:none;}
   .deal-card-body{padding:14px;display:flex;flex-direction:column;flex:1;}
   .deal-card .discount{color:var(--accent2);font-size:13.5px;font-weight:700;display:block;margin-bottom:8px;}
-  .deal-card .weather-line{display:flex;align-items:center;gap:5px;font-size:14px;color:var(--text);margin:-3px 0 9px;}
+  /* Flight time / distance / timezone diff — computed static "trip facts"
+     (lib/geo.js), shown as one small muted line so they add context
+     without competing visually with the price or weather. */
+  .deal-card .trip-facts{display:flex;align-items:center;flex-wrap:wrap;gap:5px;font-size:12px;color:var(--muted);margin:-2px 0 9px;line-height:1.5;}
+  .deal-card .trip-facts .dot{opacity:.6;}
+  .deal-card .weather-line{display:flex;align-items:center;flex-wrap:wrap;gap:5px;font-size:14px;color:var(--text);margin:-3px 0 9px;}
   .deal-card .weather-line .weather-label{color:var(--muted);font-weight:500;}
+  .deal-card .weather-line .rain-badge{font-size:11px;font-weight:600;color:#8ec9ff;background:rgba(142,201,255,0.14);padding:2px 8px;border-radius:var(--radius-pill);}
   .deal-card .blurb{font-size:13.5px;color:var(--muted);margin:0 0 10px;line-height:1.45;}
+  /* "While you're there" FX context (lib/fx.js) — international deals
+     only, deliberately separate from the flight price above (already in
+     the user's own currency) so the two are never confused. */
+  .deal-card .fx-line{font-size:12px;color:var(--muted);margin:-4px 0 10px;}
   .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);margin-top:auto;box-shadow:0 4px 14px rgba(245,176,76,0.3);}
   .deal-card .book-btn:hover{background:var(--text);}
   .events-section{margin-top:20px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;}
@@ -1917,7 +1927,53 @@ function weatherLine(w){
     ? `Short-range forecast for this exact date (${w.label ? w.label.toLowerCase() + ', ' : ''}high/low in °C).`
     : `This break is more than two weeks out, so a real forecast doesn't exist yet — this is the typical high/low for ${w.month}, averaged from the last 3 years of actual weather.`;
   const label = w.type === 'forecast' ? (w.label || 'Forecast') : `Typical for ${w.month}`;
-  return `<div class="weather-line">${w.icon} ${range} <span class="weather-label">${label}</span><span class="info-icon" tabindex="0">i<span class="info-tooltip">${tooltip}</span></span></div>`;
+  // Rain is a separate signal from the type shown here: for a real
+  // forecast it's this exact date's rain chance; further out (no forecast
+  // yet), it's whether this time of year historically runs wet at this
+  // destination — a "rainy season" flag, not a prediction for this day.
+  let rainBadge = '';
+  if(w.type === 'forecast' && w.rainLikely){
+    rainBadge = `<span class="rain-badge" title="This date has a high chance of rain in the short-range forecast.">🌧️ Rain likely</span>`;
+  } else if(w.type === 'typical' && w.rainySeason){
+    rainBadge = `<span class="rain-badge" title="Based on average rainfall for this time of year over the last 3 years — not a forecast for your exact dates.">🌧️ Rainy season</span>`;
+  }
+  return `<div class="weather-line">${w.icon} ${range} <span class="weather-label">${label}</span>${rainBadge}<span class="info-icon" tabindex="0">i<span class="info-tooltip">${tooltip}</span></span></div>`;
+}
+
+// Distance/flight-time/timezone are informational "trip facts" computed
+// server-side (see lib/geo.js) — pure static lookups, always present or
+// always null together for a given deal, so this either renders one small
+// line or nothing at all.
+function fmtFlightDuration(mins){
+  if(mins == null) return null;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h ? `${h}h${m ? ' ' + m + 'm' : ''}` : `${m}m`;
+}
+function fmtTzDiff(hours){
+  if(hours == null) return null;
+  if(hours === 0) return 'same time zone as home';
+  const abs = Math.abs(hours);
+  const label = Number.isInteger(abs) ? abs : abs.toFixed(1);
+  return hours > 0 ? `${label}h ahead of home` : `${label}h behind home`;
+}
+function tripFactsLine(d){
+  const parts = [];
+  const duration = fmtFlightDuration(d.flightMinutes);
+  if(duration) parts.push(`✈️ ${duration} flight`);
+  if(d.distanceKm != null) parts.push(`📍 ${d.distanceKm.toLocaleString()} km away`);
+  const tz = fmtTzDiff(d.tzDiffHours);
+  if(tz) parts.push(`🕐 ${tz}`);
+  if(!parts.length) return '';
+  return `<div class="trip-facts">${parts.join(' <span class="dot">·</span> ')}<span class="info-icon" tabindex="0">i<span class="info-tooltip">Distance is straight-line, and the time difference uses standard time (daylight saving isn't accounted for) — both approximate, not for navigation.</span></span></div>`;
+}
+
+// "While you're there" spending-money context for international deals only
+// (see lib/fx.js) — the flight price itself is always already shown in the
+// user's own chosen currency, this is purely about cash in-destination.
+function fxLine(fx){
+  if(!fx) return '';
+  const rateStr = fx.rate >= 100 ? Math.round(fx.rate).toLocaleString() : fx.rate.toFixed(2);
+  return `<div class="fx-line">💱 While you're there: ${fx.baseSymbol}1 ≈ ${fx.quoteSymbol}${rateStr}</div>`;
 }
 
 function dealsMarkup(result){
@@ -1952,8 +2008,10 @@ function dealsMarkup(result){
       </div>
       <div class="deal-card-body">
         <div class="discount">Real fare · ${fmtDateTime(d.departureAt)} → ${fmtDateTime(d.returnAt)}${d.nights != null ? ` · ${d.nights} night${d.nights===1?'':'s'}` : ''}</div>
+        ${tripFactsLine(d)}
         ${weatherLine(d.weather)}
         <div class="blurb">${d.blurb}</div>
+        ${fxLine(d.fx)}
         <a class="book-btn" href="${d.bookUrl}" target="_blank" rel="noopener sponsored" onclick="trackDealClick('${d.iata}')">✈️ Book this fare →</a>
       </div>
     </div>

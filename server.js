@@ -24,6 +24,8 @@ import { findActivities } from './lib/viator.js';
 import { findFreeActivities, geocodeHometown } from './lib/activities.js';
 import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
 import { getWeatherForDate } from './lib/weather.js';
+import { routeContext } from './lib/geo.js';
+import { fetchExchangeRates, DEST_CURRENCY_BY_IATA, DEST_CURRENCY_SYMBOLS } from './lib/fx.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, createCalendarToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
 import { sendPasswordResetEmail } from './lib/email.js';
@@ -309,6 +311,10 @@ async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
   // actually shows them instead of throwing extras away.
   const deals = selectDeals(cached.fares, { limit: 6, profile });
   await attachWeather(deals);
+  // Distance + timezone diff are pure static lookups (no fetch, no cache
+  // needed) — see lib/geo.js for why DST isn't modelled here.
+  for (const d of deals) Object.assign(d, routeContext(origin, d.iata));
+  await attachExchangeContext(deals, settings.currency);
   return {
     source: cached.fares.length ? 'real' : 'no-results',
     deals,
@@ -350,6 +356,45 @@ async function attachWeather(deals) {
     }
     d.weather = cached.weather;
   }));
+}
+
+// ---------- "while you're there" currency context, per home currency ----------
+// The source refreshes once a day (see lib/fx.js) so caching at roughly
+// that cadence, per base currency, avoids re-fetching on every dashboard
+// load — there are only 5 possible base currencies (lib/deals.js
+// CURRENCY_SYMBOLS), so this is a tiny amount of state either way.
+const FX_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const fxCache = new Map(); // base currency -> { rates, fetchedAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of fxCache) {
+    if (now - entry.fetchedAt > FX_CACHE_TTL_MS) fxCache.delete(key);
+  }
+}, 60 * 60 * 1000).unref();
+
+async function attachExchangeContext(deals, currency) {
+  const base = (currency || 'AUD').toUpperCase();
+  let cached = fxCache.get(base);
+  if (!cached || Date.now() - cached.fetchedAt >= FX_CACHE_TTL_MS) {
+    let rates = null;
+    try {
+      rates = await fetchExchangeRates({ base });
+    } catch (e) {
+      console.error('[fx] fetchExchangeRates threw:', e.message);
+    }
+    cached = { rates, fetchedAt: Date.now() };
+    fxCache.set(base, cached);
+  }
+  for (const d of deals) {
+    const destCurrency = !d.domestic ? DEST_CURRENCY_BY_IATA[d.iata] : null;
+    const rate = (destCurrency && cached.rates) ? cached.rates[destCurrency] : null;
+    d.fx = rate ? {
+      base, quote: destCurrency, rate,
+      baseSymbol: CURRENCY_SYMBOLS[base] || base,
+      quoteSymbol: DEST_CURRENCY_SYMBOLS[destCurrency] || destCurrency
+    } : null;
+  }
 }
 
 // ---------- activities for hometown ----------

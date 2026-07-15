@@ -141,14 +141,8 @@
      only, deliberately separate from the flight price above (already in
      the user's own currency) so the two are never confused. */
   .deal-card .fx-line{font-size:12px;color:var(--muted);margin:-4px 0 10px;}
-  .deal-card .deal-cta-row{display:flex;flex-direction:column;gap:8px;margin-top:auto;}
-  .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);box-shadow:0 4px 14px rgba(245,176,76,0.3);}
+  .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);margin-top:auto;box-shadow:0 4px 14px rgba(245,176,76,0.3);}
   .deal-card .book-btn:hover{background:var(--text);}
-  /* Booking.com accommodation link (lib/booking.js) — deliberately styled
-     as a secondary action so the flight booking link (the deal this card
-     is actually about) stays the clear primary choice. */
-  .deal-card .book-btn.secondary{background:none;border:1px solid var(--border);color:var(--text);box-shadow:none;}
-  .deal-card .book-btn.secondary:hover{background:rgba(244,238,227,0.12);}
   .events-section{margin-top:20px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;}
   .events-section-head{margin-bottom:8px;}
   .events-section-head h3{margin:0 0 3px;font-size:14px;font-weight:700;}
@@ -2018,10 +2012,7 @@ function dealsMarkup(result){
         ${weatherLine(d.weather)}
         <div class="blurb">${d.blurb}</div>
         ${fxLine(d.fx)}
-        <div class="deal-cta-row">
-          <a class="book-btn" href="${d.bookUrl}" target="_blank" rel="noopener sponsored" onclick="trackDealClick('${d.iata}')">✈️ Book this fare →</a>
-          ${d.hotelUrl ? `<a class="book-btn secondary" href="${d.hotelUrl}" target="_blank" rel="noopener sponsored">🏨 Find a place to stay</a>` : ''}
-        </div>
+        <a class="book-btn" href="${d.bookUrl}" target="_blank" rel="noopener sponsored" onclick="trackDealClick('${d.iata}')">✈️ Book this fare →</a>
       </div>
     </div>
   `;

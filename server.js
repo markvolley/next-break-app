@@ -26,7 +26,7 @@ import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
 import { getWeatherForDate } from './lib/weather.js';
 import { routeContext } from './lib/geo.js';
 import { fetchExchangeRates, DEST_CURRENCY_BY_IATA, DEST_CURRENCY_SYMBOLS } from './lib/fx.js';
-import { buildHotelSearchUrl } from './lib/hotellook.js';
+import { buildBookingSearchUrl } from './lib/booking.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, createCalendarToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
 import { sendPasswordResetEmail } from './lib/email.js';
@@ -47,6 +47,14 @@ const UNLOCK_FEE_CENTS = parseInt(process.env.UNLOCK_FEE_CENTS, 10) || 500; // $
 // and should stay secret, same handling as the Stripe key.
 const TRAVELPAYOUTS_TOKEN = process.env.TRAVELPAYOUTS_TOKEN || '';
 const TRAVELPAYOUTS_MARKER = process.env.TRAVELPAYOUTS_MARKER || '';
+
+// Booking.com (accommodation) via the Booking.com program on Travelpayouts
+// — a separate `aid` from TRAVELPAYOUTS_MARKER above, since Booking.com
+// assigns its own affiliate ID rather than reusing the general Travelpayouts
+// marker (see lib/booking.js for why). BOOKING_LABEL is optional, purely
+// for your own click tracking (Travelpayouts' equivalent of a SubID).
+const BOOKING_AID = process.env.BOOKING_AID || '';
+const BOOKING_LABEL = process.env.BOOKING_LABEL || '';
 
 // Viator affiliate credentials — same operator-level pattern as above.
 // VIATOR_API_KEY is secret (authenticates API calls). VIATOR_PID (Partner
@@ -316,17 +324,18 @@ async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
   // needed) — see lib/geo.js for why DST isn't modelled here.
   for (const d of deals) Object.assign(d, routeContext(origin, d.iata));
   await attachExchangeContext(deals, settings.currency);
-  // Hotellook accommodation search link, same dates as the flight — see
-  // lib/hotellook.js for why this is a link builder, not a data lookup.
-  // Only populated once TRAVELPAYOUTS_MARKER is set (same marker used for
-  // flights, since it's account-wide, not program-specific) — null just
-  // means "no hotel link shown," never a broken one.
+  // Booking.com accommodation search link, same dates as the flight — see
+  // lib/booking.js for why this is a link builder, not a data lookup, and
+  // why it needs its own BOOKING_AID rather than reusing
+  // TRAVELPAYOUTS_MARKER. Only populated once BOOKING_AID is set — null
+  // just means "no hotel link shown," never a broken one.
   for (const d of deals) {
-    d.hotelUrl = TRAVELPAYOUTS_MARKER ? buildHotelSearchUrl({
+    d.hotelUrl = BOOKING_AID ? buildBookingSearchUrl({
       destinationName: d.name,
       checkIn: (d.departureAt || '').slice(0, 10),
       checkOut: (d.returnAt || '').slice(0, 10),
-      marker: TRAVELPAYOUTS_MARKER
+      aid: BOOKING_AID,
+      label: BOOKING_LABEL
     }) : null;
   }
   return {
@@ -1248,6 +1257,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
     console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
     console.log(`Ticketmaster events: ${TICKETMASTER_API_KEY ? 'configured' : 'NOT configured (set TICKETMASTER_API_KEY in .env — no events section will show until then)'}`);
+    console.log(`Booking.com accommodation links: ${BOOKING_AID ? 'configured' : 'NOT configured (set BOOKING_AID in .env once connected to the Booking.com program on Travelpayouts — no "Find a place to stay" link will show until then)'}`);
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);

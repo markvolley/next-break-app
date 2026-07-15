@@ -104,6 +104,12 @@
   .deal-photo{position:relative;height:300px;display:flex;flex-direction:column;}
   .deal-photo-bg{position:absolute;inset:0;border-radius:16px 16px 0 0;overflow:hidden;}
   .deal-photo-bg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:var(--border);}
+  /* Not every one of the 38 curated destinations has a hand-picked photo
+     yet — rather than leaving those cards blank/dark, fall back to a
+     branded gradient with the destination's airport code, so every card
+     always shows *something* intentional-looking. */
+  .deal-photo-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg, rgba(245,176,76,0.22), rgba(16,24,32,0.96));}
+  .deal-photo-fallback span{font-size:42px;font-weight:800;letter-spacing:.08em;color:rgba(244,238,227,0.32);font-family:var(--font-head);}
   .deal-photo-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0) 35%, rgba(16,24,32,0.92) 100%);}
   .deal-photo .deal-tags-row{position:relative;z-index:2;align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;margin:14px 14px 0;}
   .deal-photo .region-tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);}
@@ -111,10 +117,14 @@
   .deal-photo .region-tag.intl{background:rgba(245,176,76,0.9);color:#101820;}
   .deal-photo .quick-trip-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);background:rgba(16,24,32,0.78);color:var(--text);border:1px solid rgba(244,238,227,0.35);}
   .deal-photo .quick-trip-tag .info-icon{width:12px;height:12px;font-size:9px;margin-left:5px;background:rgba(244,238,227,0.3);}
-  .deal-photo .deal-overlay-text{position:relative;z-index:2;margin-top:auto;padding:20px;width:100%;display:flex;justify-content:space-between;align-items:flex-end;box-sizing:border-box;gap:10px;}
-  .deal-photo .dest-info{flex:1;min-width:0;}
+  /* Destination name now gets its own full-width row (was squeezed into a
+     narrow column next to the price before, which forced long names like
+     "Christchurch, NZ" to break mid-word to fit). Type + price share a
+     second row underneath, where there's less text competing for space. */
+  .deal-photo .deal-overlay-text{position:relative;z-index:2;margin-top:auto;padding:20px;width:100%;box-sizing:border-box;}
   .deal-photo .dest{font-weight:700;font-size:22px;color:#fff;overflow-wrap:break-word;}
-  .deal-photo .type{font-size:13px;color:rgba(244,238,227,0.8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .deal-photo .dest-price-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:4px;}
+  .deal-photo .type{font-size:13px;color:rgba(244,238,227,0.8);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .deal-photo .price{font-weight:800;font-size:20px;color:var(--accent2);white-space:nowrap;flex:none;}
   .deal-card-body{padding:14px;display:flex;flex-direction:column;flex:1;}
   .deal-card .discount{color:var(--accent2);font-size:13.5px;font-weight:700;display:block;margin-bottom:8px;}
@@ -1927,17 +1937,17 @@ function dealsMarkup(result){
     return `
     <div class="deal-card">
       <div class="deal-photo">
-        <div class="deal-photo-bg">${photo ? `<img src="${photo}" alt="" loading="lazy">` : ''}</div>
+        <div class="deal-photo-bg">${photo ? `<img src="${photo}" alt="" loading="lazy">` : `<div class="deal-photo-fallback"><span>${d.iata}</span></div>`}</div>
         <div class="deal-tags-row">
           <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
           ${d.isQuickTrip ? `<div class="quick-trip-tag">Quick trip<span class="info-icon" tabindex="0">i<span class="info-tooltip">This fits your break, but it's a shorter trip than we'd usually call a full break away — ${d.nights} night${d.nights===1?'':'s'} once you count the flying time. Still a real, bookable fare if it works for you.</span></span></div>` : ''}
         </div>
         <div class="deal-overlay-text">
-          <div class="dest-info">
-            <div class="dest">${d.name}</div>
+          <div class="dest">${d.name}</div>
+          <div class="dest-price-row">
             <div class="type">${d.airline} ${d.flightNumber} · ${stops}</div>
+            <div class="price">${sym}${Math.round(d.price)}</div>
           </div>
-          <div class="price">${sym}${Math.round(d.price)}</div>
         </div>
       </div>
       <div class="deal-card-body">

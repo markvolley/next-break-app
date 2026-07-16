@@ -16,7 +16,8 @@ import {
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
   setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
   setAccountProfile, listAccounts, recordDealClick, listDealClicks, recordEventClick, listEventClicks, recordFeedback, listFeedback, recordVisit, getVisitsByDay,
-  getCalendarTokenForUser, setCalendarToken, getUserIdForCalendarToken, _dataFilePath
+  getCalendarTokenForUser, setCalendarToken, getUserIdForCalendarToken, _dataFilePath,
+  getOrCreateUnsubscribeToken, getEmailByUnsubscribeToken, recordDigestSent, hasDigestSent
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
@@ -28,8 +29,9 @@ import { routeContext } from './lib/geo.js';
 import { fetchExchangeRates, DEST_CURRENCY_BY_IATA, DEST_CURRENCY_SYMBOLS } from './lib/fx.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, createCalendarToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
-import { sendPasswordResetEmail } from './lib/email.js';
+import { sendPasswordResetEmail, sendBreakDigestEmail } from './lib/email.js';
 import { buildBreaksICS } from './lib/calendar.js';
+import { pickEligibleBreak } from './lib/digest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -84,6 +86,12 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 // account or Resend will reject the send.
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Next Break <onboarding@resend.dev>';
+
+// Password-reset links use originFromRequest(req) since there's always a
+// real incoming request to derive host/protocol from. The break-reminder
+// digest (see runDigestSweep) has no request, it's a background job, so it
+// needs a fixed base URL instead.
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://nextbreak.com.au').replace(/\/$/, '');
 
 const SESSION_COOKIE = 'nb_session';
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -994,6 +1002,99 @@ async function handleGetEvents(req, res, userId, query) {
   sendJson(res, 200, { breakKey, source, hometown: settings.hometown || '', events });
 }
 
+// ---------- break-reminder digest ----------
+// Roster-based, not calendar-based: this runs a sweep on a fixed interval
+// (see the setInterval near the bottom of this file), but each account
+// only ever gets an email when THEIR next break is 5-7 days out, and only
+// once per break (see hasDigestSent/recordDigestSent in lib/store.js and
+// pickEligibleBreak in lib/digest.js). That means the frequency naturally
+// matches how often someone actually has a break coming up, not a fixed
+// weekly/daily marketing schedule — the goal is for this to never feel
+// like spam.
+async function runDigestSweep() {
+  if (!RESEND_API_KEY) return; // nothing to send through — skip the work entirely
+
+  const accounts = listAccounts().filter(a => a.marketingOptIn);
+  for (const account of accounts) {
+    try {
+      await maybeSendDigestForAccount(account.email);
+    } catch (e) {
+      // One account's failure (bad settings, a transient fetch error) should
+      // never stop the rest of the sweep from running.
+      console.error(`[digest] sweep failed for ${account.email}:`, e.message);
+    }
+  }
+}
+
+async function maybeSendDigestForAccount(email) {
+  const settings = getSettings(email);
+  if (!settings.hometown) return; // nothing meaningful to report without a roster set up
+
+  const breaks = computeUpcomingBreaks(settings).map(b => ({ ...b, ...breakStatus(b) }));
+  const brk = pickEligibleBreak(breaks, key => hasDigestSent(email, key));
+  if (!brk) return;
+
+  const [dealsResult, eventsResult] = await Promise.all([
+    buildDealsForBreak(brk, settings),
+    buildEventsForBreak(brk, settings)
+  ]);
+  const deals = dealsResult.deals || [];
+  const events = eventsResult.events || [];
+
+  // Only bother looking up the free/bookable fallback if there's actually
+  // nothing else to report — same "don't do work nobody will see" reasoning
+  // as the on-page version in index.html.
+  const activities = (!deals.length && !events.length)
+    ? (await buildActivitiesForSettings(settings)).activities
+    : [];
+
+  if (!deals.length && !events.length && !activities.length) {
+    // Genuinely nothing to say — better to skip the email than send an
+    // empty one just to say something.
+    recordDigestSent(email, brk.key);
+    return;
+  }
+
+  const token = getOrCreateUnsubscribeToken(email);
+  const sent = await sendBreakDigestEmail({
+    to: email,
+    hometown: settings.hometown,
+    breakStart: toISO(brk.start),
+    breakEnd: toISO(brk.end),
+    daysUntil: brk.daysUntil,
+    deals,
+    events,
+    activities,
+    unsubscribeUrl: `${PUBLIC_BASE_URL}/api/unsubscribe?token=${token}`,
+    currencySymbol: CURRENCY_SYMBOLS[settings.currency] || 'A$',
+    apiKey: RESEND_API_KEY,
+    fromAddress: EMAIL_FROM
+  });
+
+  // Recorded either way — a failed send shouldn't be retried every sweep
+  // for the same break; if it matters, it'll show up in server logs.
+  recordDigestSent(email, brk.key);
+  if (!sent) console.error(`[digest] send failed for ${email}, break ${brk.key}`);
+}
+
+async function handleUnsubscribe(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const token = url.searchParams.get('token');
+  const email = token && getEmailByUnsubscribeToken(token);
+
+  if (!email) {
+    res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end('<p>That unsubscribe link looks invalid or has expired.</p>');
+  }
+
+  setAccountProfile(email, { marketingOptIn: false });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center;">
+    <p>You've been unsubscribed from Next Break's break reminders. You won't get any more of these emails.</p>
+    <p><a href="${PUBLIC_BASE_URL}">Back to Next Break</a></p>
+  </body></html>`);
+}
+
 // ---------- personal stats ----------
 // Logged-in only, same reasoning as personalisation/deal-click tracking
 // above — an anonymous device id has no durable click history worth
@@ -1420,6 +1521,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/deal-click' && req.method === 'POST') return await handleDealClick(req, res);
       if (pathname === '/api/event-click' && req.method === 'POST') return await handleEventClick(req, res);
       if (pathname === '/api/feedback' && req.method === 'POST') return await handleFeedback(req, res);
+      if (pathname === '/api/unsubscribe' && req.method === 'GET') return await handleUnsubscribe(req, res);
       if (pathname === '/api/admin/stats' && req.method === 'GET') return await handleAdminStats(req, res);
       if (pathname === '/api/stats' && req.method === 'GET') return await handleGetStats(req, res);
 
@@ -1478,7 +1580,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);
     console.log(`Admin dashboard: ${ADMIN_EMAILS.length ? `configured for ${ADMIN_EMAILS.join(', ')}` : 'NOT configured (set ADMIN_EMAIL in .env — /admin.html will 403 for everyone until then)'}`);
+    console.log(`Break-reminder digest: ${RESEND_API_KEY ? `configured (Resend), checking every ${Math.round(DIGEST_SWEEP_INTERVAL_MS / 3600000)}h for opted-in accounts with a break 5-7 days out` : 'NOT configured (set RESEND_API_KEY in .env — no digest emails will send until then)'}`);
   });
+
+  // Only scheduled behind the same "ran directly, not imported by a test"
+  // guard as server.listen above, so importing server.js in a test file
+  // never spins up a real background timer that could fire mid-suite.
+  const DIGEST_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000; // once a day is plenty for a 3-day-wide eligibility window
+  setTimeout(() => { runDigestSweep().catch(e => console.error('[digest] sweep threw:', e.message)); }, 60 * 1000); // small delay so it's not competing with server startup
+  setInterval(() => { runDigestSweep().catch(e => console.error('[digest] sweep threw:', e.message)); }, DIGEST_SWEEP_INTERVAL_MS).unref();
 }
 
-export { server, presentBreak, buildDealsForBreak, buildActivitiesForSettings };
+export { server, presentBreak, buildDealsForBreak, buildActivitiesForSettings, runDigestSweep, maybeSendDigestForAccount };

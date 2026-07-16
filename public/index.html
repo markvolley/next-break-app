@@ -1349,6 +1349,14 @@ const dealsCache = {};   // breakKey -> {source, currencySymbol, deals}
 const dealsLoading = {}; // breakKey -> true while a fetch is in flight
 const eventsCache = {};   // breakKey -> {source, hometown, events}
 const eventsLoading = {}; // breakKey -> true while a fetch is in flight
+// Fallback "things to do" (bookable via Viator, or free public spots) shown
+// only when a break's deals AND events both come back empty — see
+// dealsSettledEmpty/eventsSettledEmpty/activitiesMarkup below. Keyed by
+// breakKey like the caches above even though /api/activities itself isn't
+// break-specific (just hometown-based), so it slots into the same
+// load-on-open, cache-per-break pattern as deals/events.
+const activitiesCache = {};
+const activitiesLoading = {};
 
 // ---------- trip interests (personalisation, logged-in users only) ----------
 // Keys here must match lib/travelpayouts.js's INTEREST_TAGS exactly — the
@@ -1828,6 +1836,37 @@ async function loadEvents(key){
   if(openBreakKey === key) renderBreaksList();
 }
 
+// Only fetched when a break turns out to have neither flight deals nor
+// events — see the trigger check in renderBreaksList(). Not called
+// unconditionally on open like loadDeals/loadEvents, so a break that
+// already has plenty going on never pays for this extra request.
+async function loadActivities(key){
+  if(activitiesLoading[key]) return;
+  activitiesLoading[key] = true;
+  try{
+    const result = await api('/api/activities');
+    activitiesCache[key] = result;
+  }catch(e){
+    activitiesCache[key] = { error: e.message, activities: [] };
+  }
+  activitiesLoading[key] = false;
+  if(openBreakKey === key) renderBreaksList();
+}
+
+// "Settled" meaning loaded (not still in flight) — undefined still means
+// "haven't checked yet," which should never be treated as empty, or the
+// activities fallback would flash on for a moment before real deals/events
+// arrive.
+function dealsSettledEmpty(cached){
+  if(cached === undefined) return false;
+  if(cached.error) return true;
+  return cached.source === 'no-results' || cached.source === 'not-configured' || !cached.deals || !cached.deals.length;
+}
+function eventsSettledEmpty(result){
+  if(result === undefined) return false;
+  return !result.events || result.events.length === 0;
+}
+
 // "9 days away", "Starts tomorrow", "Happening now" — pulls straight from
 // the daysUntil/isOngoing/isSoon fields the server already computes.
 function daysBadge(b){
@@ -1894,6 +1933,15 @@ function renderBreaksList(){
       // result just means the section doesn't appear, same treatment as
       // "not configured" (no error banner cluttering the deals view).
       bodyHtml += eventsMarkup(eventsCache[b.key]);
+
+      // Dead-end fallback: if this break genuinely has no flight deals and
+      // no events, don't leave "no fares found" as the only thing on
+      // screen. Fetch (once) and show real free/bookable things to do near
+      // home instead, so there's always something worth looking at.
+      if(dealsSettledEmpty(cached) && eventsSettledEmpty(eventsCache[b.key])){
+        if(!activitiesCache[b.key] && !activitiesLoading[b.key]) loadActivities(b.key);
+        bodyHtml += activitiesMarkup(activitiesCache[b.key]);
+      }
     }
     // The soonest break (i === 0) gets the bigger "hero" treatment right
     // inside the list — same expand/collapse behaviour as every other row,
@@ -2218,6 +2266,59 @@ function eventsMarkup(result){
         <p>Real Ticketmaster listings, booked separately from your flight above.</p>
       </div>
       ${events.map(eventRow).join('')}
+    </div>
+  `;
+}
+
+// ---------- fallback: free/bookable things to do near home ----------
+// Only ever rendered when a break has neither flight deals nor events (see
+// the trigger in renderBreaksList) — reuses the same .events-section /
+// .event-row styling as the Ticketmaster section above rather than
+// introducing a near-duplicate set of card styles. Two real sources, never
+// fabricated: Viator (bookable, source: 'real') when configured and it has
+// something for this hometown, else free public spots sourced live from
+// OpenStreetMap (source: 'free'). Renders nothing if even that comes back
+// empty — the "no fares found" disclaimer above already covers that case.
+function activityRow(a){
+  if(a.source === 'real'){
+    const bits = [];
+    if(a.duration) bits.push(a.duration);
+    if(a.rating != null) bits.push(`★ ${a.rating}${a.reviewCount ? ` (${a.reviewCount})` : ''}`);
+    const price = (a.price != null) ? `<div class="price">${a.currency || ''} ${Math.round(a.price)}</div>` : '';
+    return `
+      <div class="event-row">
+        ${a.image ? `<img class="event-thumb" src="${a.image}" alt="" loading="lazy">` : `<div class="event-thumb placeholder">🎫</div>`}
+        <div class="info">
+          <div class="title">${a.title}</div>
+          <div class="meta">${bits.join(' · ') || 'Bookable activity'}</div>
+        </div>
+        ${price}
+        <a class="btn secondary small" href="${a.bookUrl}" target="_blank" rel="noopener sponsored">View & book →</a>
+      </div>
+    `;
+  }
+  return `
+    <div class="event-row">
+      <div class="event-thumb placeholder">📍</div>
+      <div class="info">
+        <div class="title">${a.title}</div>
+        <div class="meta">${a.category || 'Local spot'} · Free</div>
+      </div>
+      <a class="btn secondary small" href="${a.mapUrl}" target="_blank" rel="noopener">View on map →</a>
+    </div>
+  `;
+}
+
+function activitiesMarkup(result){
+  if(result === undefined) return '<div class="empty">Looking up things to do nearby…</div>';
+  if(result.error || !result.activities || !result.activities.length) return '';
+  return `
+    <div class="events-section">
+      <div class="events-section-head">
+        <h3>🧭 Nothing on for these dates? Here's what's near home</h3>
+        <p>${result.source === 'real' ? "Real, bookable activities near your hometown, in case you'd rather stay local this break." : "Free, real spots near your hometown (sourced from open map data), in case you'd rather stay local this break."}</p>
+      </div>
+      ${result.activities.map(activityRow).join('')}
     </div>
   `;
 }

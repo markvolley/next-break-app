@@ -624,8 +624,8 @@
   <!-- STATS VIEW (logged-in users only) -->
   <div id="view-stats" style="display:none;">
     <div class="panel">
-      <h2>Your stats</h2>
-      <div class="hint" style="margin-top:0;">Built from your actual roster and the deals you've clicked into, not projections.</div>
+      <h2>My stats</h2>
+      <div class="hint" style="margin-top:0;">Your own account activity: built from your actual roster and the deals you've clicked into, not projections. Looking for site-wide numbers instead? That's the Admin dashboard.</div>
       <div class="stat-cards" style="margin-top:16px;">
         <div class="stat-card"><div class="n" id="statUpcoming">–</div><div class="l">Upcoming breaks</div></div>
         <div class="stat-card"><div class="n" id="statNextIn">–</div><div class="l">Days to next break</div></div>
@@ -714,9 +714,9 @@ function renderAccountArea(){
     area.innerHTML = `
       <button class="nav-btn" id="navDash" onclick="showView('dashboard')">My Breaks</button>
       <button class="nav-btn" id="navSetup" onclick="showView('setup')">Setup</button>
-      <button class="nav-btn" id="navStats" onclick="showView('stats')">Stats</button>
+      <button class="nav-btn" id="navStats" onclick="showView('stats')">My Stats</button>
       <button class="nav-btn" id="navProfile" onclick="showView('profile')">Profile</button>
-      ${authState.isAdmin ? `<a class="nav-btn" href="/admin.html" title="Site-wide traffic, sign-ups and deal clicks. Separate from the 'Stats' tab, which is per-visitor usage">Admin</a>` : ''}
+      ${authState.isAdmin ? `<a class="nav-btn" href="/admin.html" title="Site-wide traffic, sign-ups and deal clicks across all visitors. Separate from 'My Stats', which is just your own account">Admin</a>` : ''}
       <span class="account-email">${authState.email}</span>
       <button class="nav-btn" onclick="logout()">Log out</button>
     `;

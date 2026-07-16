@@ -117,6 +117,14 @@
   .deal-photo .region-tag.intl{background:rgba(245,176,76,0.9);color:#101820;}
   .deal-photo .quick-trip-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);background:rgba(16,24,32,0.78);color:var(--text);border:1px solid rgba(244,238,227,0.35);}
   .deal-photo .quick-trip-tag .info-icon{width:12px;height:12px;font-size:9px;margin-left:5px;background:rgba(244,238,227,0.3);}
+  /* Backfill "no cached fare, but a real optional destination" cards (see
+     lib/travelpayouts.js withBackfill / server.js source: 'search-only') —
+     deliberately a muted, outlined tag rather than the solid accent used
+     for a real found fare, so it reads as "worth a look" rather than "here's
+     a deal", and a subtler card body overall since there's no price/date/
+     weather to show. */
+  .deal-photo .search-only-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);background:rgba(16,24,32,0.6);color:rgba(244,238,227,0.75);border:1px dashed rgba(244,238,227,0.35);}
+  .deal-photo .search-only-tag .info-icon{width:12px;height:12px;font-size:9px;margin-left:5px;background:rgba(244,238,227,0.3);}
   /* Destination name now gets its own full-width row (was squeezed into a
      narrow column next to the price before, which forced long names like
      "Christchurch, NZ" to break mid-word to fit). Type + price share a
@@ -143,6 +151,11 @@
   .deal-card .fx-line{font-size:12px;color:var(--muted);margin:-4px 0 10px;}
   .deal-card .book-btn{display:block;text-align:center;background:var(--accent2);color:#101820;font-size:13.5px;text-decoration:none;font-weight:700;padding:11px 14px;border-radius:var(--radius-pill);margin-top:auto;box-shadow:0 4px 14px rgba(245,176,76,0.3);}
   .deal-card .book-btn:hover{background:var(--text);}
+  /* Outline variant for backfill "search only" cards — same shape/weight
+     as a real book-btn so it still reads as a clear call to action, but
+     visually secondary since it leads to a live search, not a found fare. */
+  .deal-card .book-btn.secondary{background:transparent;color:var(--text);border:1.5px solid var(--border);box-shadow:none;}
+  .deal-card .book-btn.secondary:hover{background:var(--panel);border-color:var(--accent2);}
   .events-section{margin-top:20px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;}
   .events-section-head{margin-bottom:8px;}
   .events-section-head h3{margin:0 0 3px;font-size:14px;font-weight:700;}
@@ -2191,6 +2204,36 @@ function fxLine(fx){
   return `<div class="fx-line">💱 While you're there: ${fx.baseSymbol}1 ≈ ${fx.quoteSymbol}${rateStr}</div>`;
 }
 
+// Backfill card for a destination with no cached fare that fits this
+// break (see lib/travelpayouts.js withBackfill / server.js's
+// source: 'search-only') — no price, no dates, just a real destination
+// worth a look and a link to a live Aviasales search for these exact
+// break dates. Deliberately looks quieter than a real deal card (dashed
+// tag, outline button) so it never gets confused for an actual found
+// fare, while still being a genuine, clickable, commissionable option
+// rather than a dead end.
+function searchOnlyCardMarkup(d){
+  const photo = destPhotoUrl(d.iata);
+  return `
+    <div class="deal-card">
+      <div class="deal-photo">
+        <div class="deal-photo-bg">${photo ? `<img src="${photo}" alt="" loading="lazy">` : `<div class="deal-photo-fallback"><span>${d.iata}</span></div>`}</div>
+        <div class="deal-tags-row">
+          <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
+          <div class="search-only-tag">No deal found yet<span class="info-icon" tabindex="0">i<span class="info-tooltip">We couldn't find a cached fare that fits your exact break dates for this one. It's still a real, worthwhile destination, search live prices for these dates directly.</span></span></div>
+        </div>
+        <div class="deal-overlay-text">
+          <div class="dest">${d.name}</div>
+        </div>
+      </div>
+      <div class="deal-card-body">
+        <div class="blurb">${d.blurb}</div>
+        <a class="book-btn secondary" href="${d.bookUrl}" target="_blank" rel="noopener sponsored" onclick="trackDealClick('${d.iata}')">🔍 Check flights →</a>
+      </div>
+    </div>
+  `;
+}
+
 function dealsMarkup(result){
   const sym = result.currencySymbol;
 
@@ -2203,6 +2246,7 @@ function dealsMarkup(result){
   }
 
   const dealsHtml = result.deals.map(d => {
+    if(d.source === 'search-only') return searchOnlyCardMarkup(d);
     const photo = destPhotoUrl(d.iata);
     const stops = d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s');
     return `
@@ -2238,10 +2282,19 @@ function dealsMarkup(result){
   if(refreshed) tags.push(`<div class="refreshed-tag">Updated ${refreshed}<span class="info-icon" tabindex="0">i<span class="info-tooltip">We refresh cached prices for each break once a day, rather than looking them up on every visit. That way you see consistent prices and we don't hammer the flight search API.</span></span></div>`);
   if(result.personalized) tags.push(`<div class="refreshed-tag">Picked for you<span class="info-icon" tabindex="0">i<span class="info-tooltip">Based on the trip interests you've set (and what you've booked before), we'll lean toward a matching deal when it's priced close to the cheapest option. Never a pricier one just because it fits.</span></span></div>`);
 
+  // When nothing real was found at all, every card is a search-only
+  // backfill one — the usual "prices are from recent searches" line
+  // doesn't apply since no price is shown anywhere on the page, so swap
+  // in copy that matches what's actually on screen.
+  const hasReal = result.deals.some(d => d.source !== 'search-only');
+  const disclaimerText = hasReal
+    ? 'Prices are from recent searches, not live quotes. Confirm the final price before booking.'
+    : "No cached fares fit these exact dates yet, but here are real destinations worth a look. Tap through for live prices.";
+
   return `
     <div class="disclaimer">
       <div class="disclaimer-row">
-        <span>Prices are from recent searches, not live quotes. Confirm the final price before booking.</span>
+        <span>${disclaimerText}</span>
         ${tags.join('')}
       </div>
     </div>

@@ -20,7 +20,7 @@ import {
   getOrCreateUnsubscribeToken, getEmailByUnsubscribeToken, recordDigestSent, hasDigestSent
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
-import { fetchAllRealFares, selectDeals, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
+import { fetchAllRealFares, selectDeals, withBackfill, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
 import { findFreeActivities, geocodeHometown } from './lib/activities.js';
 import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
@@ -309,24 +309,38 @@ async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
       dealsCache.set(cacheKey, cached);
     } catch (e) {
       console.error('[travelpayouts] fetchAllRealFares threw:', e.message);
-      return { source: 'no-results', deals: [], fetchedAt: null };
+      // Don't cache a transient failure — leave dealsCache unset for this
+      // key so the next request retries the real fetch. Still fall through
+      // to backfill below, since a live-search link doesn't depend on this
+      // fetch having worked at all.
+      cached = { fares: [], fetchedAt: Date.now() };
     }
   }
+
+  const realSource = cached.fares.length ? 'real' : 'no-results';
 
   // Guarantees a domestic/SEA/international mix first, then backfills with
   // any other real fares found (see selectDeals) up to this cap — raised
   // from the old fixed 3-slot limit so a break with plenty of real options
-  // actually shows them instead of throwing extras away.
-  const deals = selectDeals(cached.fares, { limit: 6, profile });
+  // actually shows them instead of throwing extras away. If real fares are
+  // still short of BACKFILL_MINIMUM after that, withBackfill tops the list
+  // up with no-price "optional destination" cards that link to a live
+  // Aviasales search for the break's real dates, so nobody ever lands on
+  // an empty deals list — see lib/travelpayouts.js for why this is still
+  // commissionable and never fabricates a price.
+  const deals = withBackfill(
+    selectDeals(cached.fares, { limit: 6, profile }),
+    { origin, brk, marker: TRAVELPAYOUTS_MARKER, currency: settings.currency }
+  );
   await attachWeather(deals);
   // Distance + timezone diff are pure static lookups (no fetch, no cache
   // needed) — see lib/geo.js for why DST isn't modelled here.
   for (const d of deals) Object.assign(d, routeContext(origin, d.iata));
   await attachExchangeContext(deals, settings.currency);
   return {
-    source: cached.fares.length ? 'real' : 'no-results',
+    source: realSource,
     deals,
-    fetchedAt: new Date(cached.fetchedAt).toISOString()
+    fetchedAt: cached.fetchedAt ? new Date(cached.fetchedAt).toISOString() : null
   };
 }
 

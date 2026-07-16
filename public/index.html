@@ -343,7 +343,13 @@
   .info-tooltip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translate(-50%,4px);background:var(--panel2);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:500;line-height:1.45;padding:9px 11px;border-radius:8px;width:210px;opacity:0;visibility:hidden;transition:opacity .15s ease,transform .15s ease;z-index:20;pointer-events:none;box-shadow:var(--shadow);text-align:left;white-space:normal;}
   .info-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--panel2);}
   .swing-field input{background:rgba(244,238,227,0.07);border:1px solid rgba(244,238,227,0.2);border-radius:10px;}
-  .swing-submit{white-space:nowrap;border-radius:10px;}
+  /* This button is a direct grid item inside .swing-row (see below), so
+     without justify-self it stretches to fill whatever column width the
+     auto-fit grid happens to give it -- often wider than its own text,
+     which then reads as off-center inside the extra space. Pinning it to
+     its own content width keeps it looking like a normal button
+     regardless of how wide its grid column ends up. */
+  .swing-submit{white-space:nowrap;border-radius:10px;justify-self:start;}
   .combo{position:relative;}
   .combo input{width:100%;}
   .combo-list{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--panel2);border:1px solid var(--border);border-radius:10px;max-height:230px;overflow-y:auto;z-index:30;box-shadow:var(--shadow);display:none;}

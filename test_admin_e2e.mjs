@@ -98,6 +98,18 @@ assert.strictEqual(r.status, 200, 'anonymous event click should be recorded too:
 r = await req('/api/event-click', { method: 'POST', headers: { Cookie: fanCookie }, body: {} });
 assert.strictEqual(r.status, 400, 'event click with neither id nor name should be rejected');
 
+// 5e. Feedback bubble: one logged-in submission with a comment + topics,
+// one anonymous submission with just a reaction, and a couple of rejected
+// malformed ones (bad reaction, topics filtered to the known allow-list).
+r = await req('/api/feedback', { method: 'POST', headers: { Cookie: fanCookie }, body: { reaction: 'love', topics: ['flights', 'not-a-real-topic'], comment: 'Loved the flight deals!', view: 'dashboard' } });
+assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+r = await req('/api/feedback', { method: 'POST', body: { reaction: 'meh' } });
+assert.strictEqual(r.status, 200, 'anonymous feedback should be recorded too: ' + JSON.stringify(r.json));
+r = await req('/api/feedback', { method: 'POST', body: { reaction: 'not-a-real-reaction' } });
+assert.strictEqual(r.status, 400, 'an unknown reaction should be rejected');
+r = await req('/api/feedback', { method: 'POST', body: {} });
+assert.strictEqual(r.status, 400, 'missing reaction should be rejected');
+
 // 5c. Site visits: hitting the real GET / route (not a mock) should record
 // a visit each time, through the actual server routing in server.js — not
 // calling lib/store.js's recordVisit() directly, so this proves the wiring
@@ -170,6 +182,23 @@ assert.strictEqual(r.json.growth.visits.last7, 3, JSON.stringify(r.json.growth.v
 assert.strictEqual(r.json.growth.signups.last7, 3, JSON.stringify(r.json.growth.signups));
 assert.strictEqual(r.json.growth.dealClicks.last7, 3, JSON.stringify(r.json.growth.dealClicks));
 assert.strictEqual(r.json.growth.eventClicks.last7, 3, JSON.stringify(r.json.growth.eventClicks));
+
+// 8f. Feedback: 1 logged-in "love" + 1 anonymous "meh" = 2 total, and the
+// unknown topic on the logged-in one should have been filtered out server
+// side, not stored.
+assert.strictEqual(r.json.feedback.total, 2, JSON.stringify(r.json.feedback));
+assert.strictEqual(r.json.feedback.last30Days, 2, JSON.stringify(r.json.feedback));
+assert.strictEqual(r.json.feedback.byReaction.love, 1, JSON.stringify(r.json.feedback.byReaction));
+assert.strictEqual(r.json.feedback.byReaction.meh, 1, JSON.stringify(r.json.feedback.byReaction));
+assert.strictEqual(r.json.feedback.byReaction.good, 0, JSON.stringify(r.json.feedback.byReaction));
+const loveEntry = r.json.feedback.recent.find(f => f.reaction === 'love');
+assert.ok(loveEntry, 'the logged-in love feedback should be in recent: ' + JSON.stringify(r.json.feedback.recent));
+assert.strictEqual(loveEntry.email, 'fan@example.com');
+assert.strictEqual(loveEntry.comment, 'Loved the flight deals!');
+assert.deepStrictEqual(loveEntry.topics, ['flights'], 'the unknown topic should have been filtered out: ' + JSON.stringify(loveEntry));
+const mehEntry = r.json.feedback.recent.find(f => f.reaction === 'meh');
+assert.ok(mehEntry, 'the anonymous meh feedback should be in recent: ' + JSON.stringify(r.json.feedback.recent));
+assert.strictEqual(mehEntry.email, null, 'anonymous feedback should have email: null: ' + JSON.stringify(mehEntry));
 
 // 9. Site visits: exactly the 3 GET / requests should be counted (the
 // static-asset request should not have added a 4th), all landing on

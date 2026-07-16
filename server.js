@@ -15,7 +15,7 @@ import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
   setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
-  setAccountProfile, listAccounts, recordDealClick, listDealClicks, recordEventClick, listEventClicks, recordVisit, getVisitsByDay,
+  setAccountProfile, listAccounts, recordDealClick, listDealClicks, recordEventClick, listEventClicks, recordFeedback, listFeedback, recordVisit, getVisitsByDay,
   getCalendarTokenForUser, setCalendarToken, getUserIdForCalendarToken, _dataFilePath
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
@@ -948,6 +948,33 @@ async function handleEventClick(req, res) {
   sendJson(res, 200, { ok: true });
 }
 
+// ---------- feedback bubble ----------
+// A reaction is required (that's the one-tap minimum the bubble is built
+// around); topics and comment are both optional extras. Anonymous-safe,
+// same reasoning as deal/event clicks above — most people giving quick
+// feedback won't be logged in, and that shouldn't stop it being recorded.
+const FEEDBACK_REACTIONS = ['love', 'good', 'meh', 'frustrated'];
+const FEEDBACK_TOPICS = ['flights', 'events', 'setup', 'pricing', 'bug', 'other'];
+
+async function handleFeedback(req, res) {
+  const body = await readJsonBody(req);
+  if (!FEEDBACK_REACTIONS.includes(body.reaction)) {
+    return sendJson(res, 400, { error: 'A valid reaction is required.' });
+  }
+  const topics = Array.isArray(body.topics)
+    ? [...new Set(body.topics.filter(t => FEEDBACK_TOPICS.includes(t)))]
+    : [];
+  const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 1000) : '';
+  const view = typeof body.view === 'string' ? body.view.slice(0, 40) : null;
+
+  const cookies = parseCookies(req);
+  const email = getSessionEmail(cookies[SESSION_COOKIE]);
+
+  recordFeedback(email, { reaction: body.reaction, topics, comment, view });
+
+  sendJson(res, 200, { ok: true });
+}
+
 async function handleGetActivities(req, res, userId) {
   const settings = getSettings(userId);
   const { source, activities } = await buildActivitiesForSettings(settings);
@@ -1108,6 +1135,7 @@ async function handleAdminStats(req, res) {
   const accounts = listAccounts();
   const clicks = listDealClicks();
   const eventClicks = listEventClicks();
+  const feedbackItems = listFeedback();
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const now = Date.now();
@@ -1131,6 +1159,18 @@ async function handleAdminStats(req, res) {
     byEvent.get(key).count++;
   }
   const topEvents = [...byEvent.values()].sort((a, b) => b.count - a.count).slice(0, 10);
+
+  const byReaction = { love: 0, good: 0, meh: 0, frustrated: 0 };
+  for (const f of feedbackItems) {
+    if (byReaction[f.reaction] !== undefined) byReaction[f.reaction]++;
+  }
+  // Newest-first, capped at 50 rather than the usual 25 — this is the one
+  // list you actually want to read through (not just skim aggregates of),
+  // since the whole point of the feedback bubble is to surface real
+  // comments, so give it a bit more room.
+  const recentFeedback = [...feedbackItems]
+    .sort((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, 50);
 
   const recentSignups = [...accounts]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -1231,6 +1271,13 @@ async function handleAdminStats(req, res) {
     },
     series,
     growth,
+    feedback: {
+      total: feedbackItems.length,
+      last7Days: feedbackItems.filter(f => withinDays(f.at, 7)).length,
+      last30Days: feedbackItems.filter(f => withinDays(f.at, 30)).length,
+      byReaction,
+      recent: recentFeedback
+    },
     recentSignups,
     recentClicks,
     recentEventClicks
@@ -1372,6 +1419,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/profile' && req.method === 'PUT') return await handlePutProfile(req, res);
       if (pathname === '/api/deal-click' && req.method === 'POST') return await handleDealClick(req, res);
       if (pathname === '/api/event-click' && req.method === 'POST') return await handleEventClick(req, res);
+      if (pathname === '/api/feedback' && req.method === 'POST') return await handleFeedback(req, res);
       if (pathname === '/api/admin/stats' && req.method === 'GET') return await handleAdminStats(req, res);
       if (pathname === '/api/stats' && req.method === 'GET') return await handleGetStats(req, res);
 

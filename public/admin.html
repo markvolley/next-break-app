@@ -49,6 +49,12 @@
   .trend-card .head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
   .trend-card .title{font-size:12.5px;color:var(--muted);font-weight:600;}
   .trend-card svg{width:100%;height:56px;display:block;}
+  /* Feedback panel: a red "N new" pill next to the heading plus a red dot
+     per unread row is the whole "how do I know there's new feedback"
+     mechanism — see markFeedbackRead() below for how it's cleared. */
+  .pill.new{background:rgba(255,107,91,0.18);color:var(--danger);}
+  .unread-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--danger);}
+  .feedback-comment{max-width:260px;white-space:pre-wrap;word-break:break-word;}
   table{width:100%;border-collapse:collapse;font-size:13.5px;}
   th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--border);}
   td{padding:9px 10px;border-bottom:1px solid var(--border);}
@@ -110,6 +116,32 @@
           <svg id="sparkEventClicks"></svg>
         </div>
       </div>
+    </div>
+
+    <!-- Kept near the top, not buried with the other detail tables below,
+         since the whole point is to actually notice new feedback. -->
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin-bottom:0;">Feedback <span class="pill new" id="feedbackNewBadge" style="display:none;"></span></h2>
+        <button class="btn secondary" id="feedbackMarkReadBtn" onclick="markFeedbackRead()" style="display:none;">Mark all as read</button>
+      </div>
+      <div class="muted" style="font-size:12.5px;margin:6px 0 14px;">
+        From the feedback bubble on the main app. "Anonymous" means they weren't logged in when they sent it.
+      </div>
+      <div class="cards" style="margin-bottom:16px;">
+        <div class="card"><div class="n" id="cFeedback30">–</div><div class="l">Feedback, last 30 days</div></div>
+        <div class="card"><div class="n" id="cFeedbackLove">–</div><div class="l">😍 Love it</div></div>
+        <div class="card"><div class="n" id="cFeedbackGood">–</div><div class="l">🙂 Good</div></div>
+        <div class="card"><div class="n" id="cFeedbackMeh">–</div><div class="l">😐 Meh</div></div>
+        <div class="card"><div class="n" id="cFeedbackFrustrated">–</div><div class="l">😞 Frustrated</div></div>
+      </div>
+      <div class="table-wrap">
+        <table id="feedbackTable">
+          <thead><tr><th></th><th>Reaction</th><th>Topics</th><th>Comment</th><th>Who</th><th>Page</th><th>When</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="feedbackEmpty" style="display:none;">No feedback yet.</div>
     </div>
 
     <div class="panel">
@@ -228,6 +260,27 @@ function showState(msg){
   el.innerHTML = msg;
 }
 
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ---------- feedback: unread tracking ----------
+// There's no per-admin account system here, just one operator, so "unread"
+// is simply "newer than the last time this browser marked feedback as
+// read," stored in localStorage. Good enough for a single-operator tool;
+// wouldn't be if there were multiple admins each wanting their own read
+// state.
+const FEEDBACK_SEEN_KEY = 'nb_admin_feedback_seen';
+const REACTION_EMOJI = { love: '😍', good: '🙂', meh: '😐', frustrated: '😞' };
+const TOPIC_LABELS = { flights: 'Flight deals', events: 'Events', setup: 'Setup / roster', pricing: 'Pricing', bug: "Something's broken", other: 'Other' };
+
+function markFeedbackRead(){
+  localStorage.setItem(FEEDBACK_SEEN_KEY, new Date().toISOString());
+  document.getElementById('feedbackNewBadge').style.display = 'none';
+  document.getElementById('feedbackMarkReadBtn').style.display = 'none';
+  document.querySelectorAll('#feedbackTable .unread-dot').forEach(el => el.style.display = 'none');
+}
+
 function renderTable(bodyId, emptyId, rows, rowFn){
   const tbody = document.querySelector('#' + bodyId + ' tbody');
   const empty = document.getElementById(emptyId);
@@ -338,6 +391,39 @@ async function loadStats(){
   renderSparkline('sparkAccounts', data.series.signups, '#4cd185');
   renderSparkline('sparkDealClicks', data.series.dealClicks, '#5ba8f5');
   renderSparkline('sparkEventClicks', data.series.eventClicks, '#c792ea');
+
+  document.getElementById('cFeedback30').textContent = data.feedback.last30Days;
+  document.getElementById('cFeedbackLove').textContent = data.feedback.byReaction.love;
+  document.getElementById('cFeedbackGood').textContent = data.feedback.byReaction.good;
+  document.getElementById('cFeedbackMeh').textContent = data.feedback.byReaction.meh;
+  document.getElementById('cFeedbackFrustrated').textContent = data.feedback.byReaction.frustrated;
+
+  const feedbackLastSeen = localStorage.getItem(FEEDBACK_SEEN_KEY);
+  const unreadCount = data.feedback.recent.filter(f => !feedbackLastSeen || f.at > feedbackLastSeen).length;
+  const feedbackBadge = document.getElementById('feedbackNewBadge');
+  const feedbackMarkBtn = document.getElementById('feedbackMarkReadBtn');
+  if(unreadCount > 0){
+    feedbackBadge.textContent = unreadCount + ' new';
+    feedbackBadge.style.display = '';
+    feedbackMarkBtn.style.display = '';
+  }else{
+    feedbackBadge.style.display = 'none';
+    feedbackMarkBtn.style.display = 'none';
+  }
+
+  renderTable('feedbackTable', 'feedbackEmpty', data.feedback.recent, f => {
+    const isUnread = !feedbackLastSeen || f.at > feedbackLastSeen;
+    const topics = (f.topics || []).map(t => TOPIC_LABELS[t] || t).join(', ');
+    return `<tr>
+      <td>${isUnread ? '<span class="unread-dot" title="New since you last checked"></span>' : ''}</td>
+      <td>${REACTION_EMOJI[f.reaction] || f.reaction}</td>
+      <td class="muted">${topics || '–'}</td>
+      <td class="feedback-comment">${f.comment ? escapeHtml(f.comment) : '<span class="muted">–</span>'}</td>
+      <td>${f.email ? escapeHtml(f.email) : '<span class="muted">Anonymous</span>'}</td>
+      <td class="muted">${f.view ? escapeHtml(f.view) : '–'}</td>
+      <td class="muted">${fmtDateTime(f.at)}</td>
+    </tr>`;
+  });
 
   renderTable('visitsTable', 'visitsEmpty', data.visits.dailyVisits, v =>
     `<tr><td>${v.date}</td><td><span class="pill">${v.count}</span></td></tr>`

@@ -182,6 +182,40 @@
   footer .footer-links{display:flex;gap:20px;font-size:13.5px;}
   footer .footer-links a{color:var(--muted);text-decoration:none;}
   footer .footer-links a:hover{color:var(--text);}
+
+  /* ---------- feedback bubble ---------- */
+  /* A small persistent affordance (not a one-time nag) so giving feedback
+     is always one tap away from anywhere in the app. Deliberately kept off
+     the legal pages (privacy/terms) and the admin tool, which have their
+     own separate <head>s and never load this script. */
+  .feedback-bubble{position:fixed;bottom:20px;right:20px;z-index:60;background:linear-gradient(135deg, var(--accent), var(--accent-hover));color:#101820;border:none;border-radius:var(--radius-pill);padding:12px 18px;font-weight:700;font-size:13.5px;cursor:pointer;box-shadow:0 6px 20px rgba(4,8,12,0.4);display:flex;align-items:center;gap:7px;}
+  .feedback-bubble:hover{filter:brightness(1.05);}
+  .feedback-panel{position:fixed;bottom:78px;right:20px;z-index:60;width:min(320px, calc(100vw - 40px));max-height:calc(100vh - 110px);overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 20px 50px rgba(0,0,0,0.45);padding:18px;opacity:0;transform:translateY(8px) scale(.98);pointer-events:none;transition:opacity .16s ease,transform .16s ease;}
+  .feedback-panel.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+  .feedback-panel h3{margin:0 0 4px;font-size:15px;}
+  .feedback-panel .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
+  .feedback-close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;min-height:28px;min-width:28px;}
+  .feedback-reactions{display:flex;gap:8px;margin-bottom:14px;}
+  .feedback-reaction{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 4px;text-align:center;cursor:pointer;font-size:21px;color:var(--text);}
+  .feedback-reaction .label{display:block;font-size:10px;color:var(--muted);margin-top:4px;font-weight:600;}
+  .feedback-reaction.active{border-color:var(--accent2);background:rgba(245,176,76,0.14);}
+  .feedback-reaction.active .label{color:var(--accent2);}
+  .feedback-topics{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+  .feedback-topic{background:rgba(244,238,227,0.07);border:1px solid rgba(244,238,227,0.2);color:var(--muted);font-size:12px;font-weight:600;padding:6px 11px;border-radius:var(--radius-pill);cursor:pointer;}
+  .feedback-topic.active{background:var(--accent2);border-color:var(--accent2);color:#101820;}
+  .feedback-panel textarea{width:100%;min-height:60px;resize:vertical;background:var(--panel2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:13px;margin-bottom:12px;box-sizing:border-box;}
+  .feedback-panel textarea:focus{outline:2px solid var(--accent2);outline-offset:1px;}
+  .feedback-panel .btn{width:100%;}
+  .feedback-panel .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .feedback-thanks{text-align:center;padding:14px 0;}
+  .feedback-thanks .big{font-size:30px;margin-bottom:6px;}
+  @media (max-width: 640px){
+    /* Smaller bubble and tighter offsets on phones so it doesn't crowd the
+       thumb-reach zone or sit under a browser's own bottom toolbar. The
+       panel still opens above it and is capped to the viewport width. */
+    .feedback-bubble{bottom:14px;right:14px;padding:10px 14px;font-size:12.5px;}
+    .feedback-panel{bottom:64px;right:10px;left:10px;width:auto;}
+  }
   .disclaimer{background:var(--panel2);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
   /* Tags (Updated ..., Picked for you) sit on the same line as the
      disclaimer text rather than stacked below it — flex row with wrap so
@@ -542,7 +576,7 @@
   <div id="view-dashboard" style="display:none;">
     <div class="top-bar">
       <div class="summary">Planning breaks for <b id="sumHometown">—</b> · <b id="sumRoster">—</b></div>
-      <button class="btn secondary small" onclick="showView('setup')">Edit setup</button>
+      <button class="btn secondary small" onclick="showView('setup')">Get Started</button>
     </div>
 
     <div id="accountPromo" class="account-promo" style="display:none;"></div>
@@ -660,6 +694,23 @@
     <a href="mailto:mark.volley@gmail.com">Contact</a>
   </div>
 </footer>
+
+<button class="feedback-bubble" id="feedbackBubble" onclick="toggleFeedbackPanel()">💬 Feedback</button>
+<div class="feedback-panel" id="feedbackPanel">
+  <button class="feedback-close" onclick="closeFeedbackPanel()" aria-label="Close">✕</button>
+  <div id="feedbackForm">
+    <h3>Quick feedback?</h3>
+    <div class="sub">Takes 5 seconds, totally optional.</div>
+    <div class="feedback-reactions" id="feedbackReactions"></div>
+    <div class="feedback-topics" id="feedbackTopics"></div>
+    <textarea id="feedbackComment" placeholder="Anything else? (optional)" maxlength="1000"></textarea>
+    <button class="btn" id="feedbackSubmitBtn" onclick="submitFeedback()" disabled>Send feedback</button>
+  </div>
+  <div id="feedbackThanks" class="feedback-thanks" style="display:none;">
+    <div class="big">🙌</div>
+    <div>Thanks, that helps a lot.</div>
+  </div>
+</div>
 
 <script>
 // ---------- user identity (no login — device-scoped id) ----------
@@ -1411,6 +1462,101 @@ function jsAttr(value){
     .replace(/</g, '&lt;');
 }
 
+// ---------- feedback bubble ----------
+// Deliberately just a reaction (one tap, required) plus optional topic tags
+// and a comment, not a full survey — the whole point is that giving
+// feedback should take a few seconds. See handleFeedback in server.js for
+// the matching allow-list of reaction/topic keys.
+const FEEDBACK_REACTIONS = [
+  { key: 'love', emoji: '😍', label: 'Love it' },
+  { key: 'good', emoji: '🙂', label: 'Good' },
+  { key: 'meh', emoji: '😐', label: 'Meh' },
+  { key: 'frustrated', emoji: '😞', label: 'Frustrated' }
+];
+const FEEDBACK_TOPICS = [
+  { key: 'flights', label: 'Flight deals' },
+  { key: 'events', label: 'Events' },
+  { key: 'setup', label: 'Setup / roster' },
+  { key: 'pricing', label: 'Pricing' },
+  { key: 'bug', label: "Something's broken" },
+  { key: 'other', label: 'Other' }
+];
+let feedbackReaction = null;
+let feedbackTopicsSelected = new Set();
+
+function renderFeedbackWidget(){
+  const reactionsEl = document.getElementById('feedbackReactions');
+  if(!reactionsEl) return;
+  reactionsEl.innerHTML = FEEDBACK_REACTIONS.map(r =>
+    `<button type="button" class="feedback-reaction${feedbackReaction===r.key ? ' active':''}" data-key="${r.key}">${r.emoji}<span class="label">${r.label}</span></button>`
+  ).join('');
+  reactionsEl.querySelectorAll('.feedback-reaction').forEach(btn => {
+    btn.addEventListener('click', () => {
+      feedbackReaction = btn.dataset.key;
+      renderFeedbackWidget();
+    });
+  });
+
+  const topicsEl = document.getElementById('feedbackTopics');
+  topicsEl.innerHTML = FEEDBACK_TOPICS.map(t =>
+    `<button type="button" class="feedback-topic${feedbackTopicsSelected.has(t.key) ? ' active':''}" data-key="${t.key}">${t.label}</button>`
+  ).join('');
+  topicsEl.querySelectorAll('.feedback-topic').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
+      if(feedbackTopicsSelected.has(key)) feedbackTopicsSelected.delete(key);
+      else feedbackTopicsSelected.add(key);
+      renderFeedbackWidget();
+    });
+  });
+
+  document.getElementById('feedbackSubmitBtn').disabled = !feedbackReaction;
+}
+
+function toggleFeedbackPanel(){
+  const panel = document.getElementById('feedbackPanel');
+  if(panel.classList.contains('show')) closeFeedbackPanel();
+  else openFeedbackPanel();
+}
+
+function openFeedbackPanel(){
+  document.getElementById('feedbackForm').style.display = '';
+  document.getElementById('feedbackThanks').style.display = 'none';
+  document.getElementById('feedbackPanel').classList.add('show');
+}
+
+function closeFeedbackPanel(){
+  document.getElementById('feedbackPanel').classList.remove('show');
+}
+
+async function submitFeedback(){
+  if(!feedbackReaction) return;
+  const btn = document.getElementById('feedbackSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try{
+    await api('/api/feedback', { method: 'POST', body: JSON.stringify({
+      reaction: feedbackReaction,
+      topics: [...feedbackTopicsSelected],
+      comment: document.getElementById('feedbackComment').value,
+      view: currentView || null
+    }) });
+    document.getElementById('feedbackForm').style.display = 'none';
+    document.getElementById('feedbackThanks').style.display = '';
+    feedbackReaction = null;
+    feedbackTopicsSelected = new Set();
+    document.getElementById('feedbackComment').value = '';
+    setTimeout(() => {
+      closeFeedbackPanel();
+      renderFeedbackWidget();
+    }, 2200);
+  }catch(e){
+    btn.textContent = 'Send feedback';
+    btn.disabled = false;
+    alert("Couldn't send that, mind trying again?");
+  }
+}
+
 function fmtDateTime(isoWithOffset){
   const d = new Date(isoWithOffset);
   return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
@@ -2155,6 +2301,7 @@ function fmtEventDateTime(localDate, localTime){
 
 // ---------- init ----------
 (async function init(){
+  renderFeedbackWidget();
   await refreshAuthState();
   if(authState.googleClientId) loadGoogleScript();
 

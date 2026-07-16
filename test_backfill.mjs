@@ -158,4 +158,51 @@ console.log('Test 8 passed: withBackfill is a safe no-op without origin/brk');
 }
 console.log('Test 9 passed: fetchAllRealFares requests an English locale so real-fare booking links are English too');
 
+function categoryOf(d) {
+  if (d.domestic) return 'domestic';
+  if (d.region === 'SEA') return 'sea';
+  return 'intl';
+}
+
+// 10. With zero real fares, the 3 backfill cards themselves follow the
+// same domestic -> SEA -> international order used for real fares.
+{
+  const b = brk('order-key-1', '2026-08-01', '2026-08-08');
+  const result = withBackfill([], { origin: 'PER', brk: b, marker: 'MK3' });
+  assert.strictEqual(result.length, 3);
+  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'sea', 'intl'], 'backfill-only cards should be ordered domestic, SEA, international');
+  assert.ok(result.every(d => d.source === 'search-only'));
+}
+console.log('Test 10 passed: an all-backfill list is ordered domestic, SEA, international');
+
+// 11. A real domestic fare plus 2 backfill cards -- the backfill should
+// fill in the *missing* categories (SEA, international), not repeat
+// domestic, and the combined list stays in domestic/SEA/intl order.
+{
+  const b = brk('order-key-2', '2026-08-01', '2026-08-08');
+  const picked = [{ source: 'real', iata: 'MEL', domestic: true, region: null, price: 200 }];
+  const result = withBackfill(picked, { origin: 'PER', brk: b, marker: 'MK4' });
+  assert.strictEqual(result.length, 3);
+  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'sea', 'intl']);
+  assert.strictEqual(result[0].iata, 'MEL', 'the real domestic fare should be the domestic slot');
+  assert.strictEqual(result[0].source, 'real');
+  assert.ok(result[1].source === 'search-only' && result[2].source === 'search-only', 'the missing SEA/international slots should be backfilled');
+}
+console.log('Test 11 passed: backfill fills the categories a real fare is missing, in order');
+
+// 12. A real SEA-only fare (domestic missing) -- the final list must still
+// read domestic-first even though the real fare isn't in the first slot
+// of `picked`, proving the ordering is enforced on the merged result, not
+// just assumed from insertion order.
+{
+  const b = brk('order-key-3', '2026-08-01', '2026-08-08');
+  const picked = [{ source: 'real', iata: 'DPS', domestic: false, region: 'SEA', price: 300 }];
+  const result = withBackfill(picked, { origin: 'PER', brk: b, marker: 'MK5' });
+  assert.strictEqual(result.length, 3);
+  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'sea', 'intl'], 'domestic must come first regardless of where the real fare landed in `picked`');
+  assert.strictEqual(result[1].iata, 'DPS', 'the real SEA fare should end up in the SEA slot after sorting');
+  assert.strictEqual(result[1].source, 'real');
+}
+console.log('Test 12 passed: final ordering is enforced regardless of which category the real fare came from');
+
 console.log('ALL BACKFILL TESTS PASSED');

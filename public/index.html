@@ -2269,7 +2269,14 @@ function dealsMarkup(result){
     return `<div class="disclaimer">✈️ Add your home airport in <a href="#" onclick="showView('setup');return false;">Setup</a> to see real flight prices for this break.</div>`;
   }
 
-  if(result.source === 'no-results' || !result.deals.length){
+  // This used to also bail out on `result.source === 'no-results'` alone —
+  // but that's just "no REAL fare was found", and withBackfill (see
+  // server.js buildDealsForBreak) guarantees the deals array itself still
+  // has real destination-only cards to show in that case. Checking source
+  // here short-circuited past those every time and re-showed this dead-end
+  // message regardless, which is the actual bug behind backfill cards
+  // never appearing. Only an actually-empty deals array should hit this.
+  if(!result.deals.length){
     return `<div class="disclaimer">No fares found yet for this route and these dates. Prices come from recent real searches, so this can change. It's worth checking back closer to your break.</div>`;
   }
 

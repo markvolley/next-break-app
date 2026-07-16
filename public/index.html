@@ -300,7 +300,14 @@
      directly under <header>) and the header itself goes transparent and
      floats on top of it (see header.landing-mode below). Sizing/copy here
      is matched exactly to the approved mockup. */
-  .hero{position:relative;overflow:hidden;height:min(88vh,760px);background:var(--bg-soft);}
+  /* Capped a bit shorter than before (was min(88vh,760px)) — on common
+     laptop viewport heights that cap landed right at the very top edge of
+     .landing-features below it, so only the bare "01/02/03" step numbers
+     peeked through with their headings cut off, reading as a layout bug
+     rather than an intentional "there's more, scroll" hint. This leaves
+     enough clearance that the numbers either come with their heading or
+     don't show at all. */
+  .hero{position:relative;overflow:hidden;height:min(80vh,700px);background:var(--bg-soft);}
   .hero-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
   .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0.6) 0%, rgba(16,24,32,0.15) 40%, rgba(16,24,32,0.94) 100%);pointer-events:none;}
   .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:0 clamp(20px,5vw,56px) clamp(28px,5vw,52px);z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:32px;flex-wrap:wrap;}
@@ -316,7 +323,7 @@
   .landing-features .feature h3{margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em;font-family:var(--font-head);}
   .landing-features .feature p{margin:0;color:rgba(244,238,227,0.7);font-size:15px;line-height:1.55;}
   @media (max-width: 640px){
-    .hero{height:min(92vh,620px);}
+    .hero{height:min(86vh,580px);}
     .hero-overlay{flex-direction:column;align-items:flex-start;}
     .hero-cta-block .btn{width:100%;text-align:center;}
     .landing-features{grid-template-columns:1fr;margin:0 -20px;}

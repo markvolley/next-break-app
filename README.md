@@ -1,36 +1,54 @@
 # Next Break
 
 A FIFO/roster travel planner: enter your swing pattern or manual break dates,
-see your upcoming breaks, and browse real flight prices for each one — with
-a trackable "Book this fare" link that earns an affiliate commission when
-someone books. A "things to do in your hometown" section is also included.
+see your upcoming breaks, and browse real flight prices, real events, and
+real things to do for each one — with trackable affiliate links that earn a
+commission when someone books. Every break always shows at least 3
+destination options, one domestic, one South East Asian, one other
+international, even on routes/dates with no cached fare.
 
-**How it makes money:** every deal card links out through a Travelpayouts
-(Aviasales) affiliate link. Users pay nothing — the airline/OTA pays a small
-commission on completed bookings. No paywall, no fee, no friction between
-someone seeing a deal and being able to book it.
+**How it makes money:** deal cards link out through Travelpayouts (Aviasales),
+Viator, and Ticketmaster affiliate links. Users pay nothing — the airline,
+activity operator, or ticketing provider pays a small commission on completed
+bookings. No paywall, no fee, no friction between seeing an option and being
+able to book it.
 
-## Real prices only — no fake/mock deals
+## Real data only — nothing is ever fabricated
+
+This is the one rule the whole app is built around: no made-up prices, no
+generic placeholder suggestions, no illustrative anything. Every number and
+every listing shown is either a real cached fare, a real event, a real
+bookable activity, or an honest "we don't have one of those for this" state.
+
+### Flights
 
 Deals come from the Travelpayouts Data API, which is a **cache of recent
 real searches**, not a live GDS lookup — perfect for someone planning weeks
 ahead for a scheduled break, but it does mean a given destination won't
 always have cached data for the exact dates asked. That's normal, not a bug.
+`REAL_DESTINATIONS` in `lib/travelpayouts.js` curates 38 real airports across
+domestic, South East Asian, and other-international routes to widen the
+chance of a cache hit.
 
-There's deliberately no mock/illustrative price fallback. A made-up price
-with a plain Google search link doesn't earn commission when clicked and
-risks misleading the user, so instead each break shows one of three honest
-states:
+Each break shows one of these states, never a fake price:
 
 - **Real fares** — `TRAVELPAYOUTS_TOKEN` is set, a home airport is entered,
-  and at least one of the ~22 curated destinations had a cached fare for
-  those dates. Shows real airline, flight number, price, and a working
-  "Book this fare" affiliate link.
-- **"No cached fares yet"** — token and home airport are both set, but none
-  of the destinations queried had cached data for that route/date range.
-  No fake price, no dead-end search link — just an honest message.
-- **"Add your home airport"** — no home airport entered yet (or
-  `TRAVELPAYOUTS_TOKEN` isn't set on the server), so no search was even
+  and at least one destination had a cached fare that actually fits the
+  break's exact dates (no grace period either side — see
+  `fitsBreak()` in `lib/travelpayouts.js`). Shows real airline, flight
+  number, price, flight time, distance, timezone diff, weather, and a
+  working "Book this fare" affiliate link.
+- **Backfilled "Check flights" cards** — whenever there are fewer than 3 real
+  fares for a break, the remaining slots are filled with real destinations
+  that show **no price at all**, just a "Check flights" button linking
+  straight to a live Aviasales search for the break's own real dates. These
+  are still real, trackable affiliate links (commission is earned on the
+  click-through regardless of whether a price was shown here first) — see
+  `withBackfill()`/`buildLiveSearchUrl()` in `lib/travelpayouts.js`. This is
+  what guarantees every break always shows at least 3 options, in
+  domestic → SEA → international order, real or backfilled.
+- **"Add your home airport"** — no home airport entered yet, or
+  `TRAVELPAYOUTS_TOKEN` isn't set on the server, so no search was even
   attempted.
 
 If real fares seem to be missing more than expected, check the server logs
@@ -39,33 +57,45 @@ lookup (`X/Y destinations had cached fares`) and logs the actual HTTP
 status/response body on any API error, so an invalid token shows up
 distinctly from a genuine cache miss.
 
-## Things to do — real activities via Viator only
+**Locale note:** every Travelpayouts request and every backfill link
+explicitly sets `locale=en-gb`. Leaving it unset doesn't fall back to
+English — Aviasales defaults to Russian, its home market, for both the
+search page language and the currency shown. This bit us once already (see
+git history), hence the regression test in `test_backfill.mjs`.
 
-The "things to do in your hometown" section works the same way as flights:
-real bookable tours/activities from Viator (owned by TripAdvisor) via
-`lib/viator.js`, with a trackable "Book this activity" affiliate link.
-Configure `VIATOR_API_KEY`, `VIATOR_PID`, and `VIATOR_MCID` in `.env` (sign
-up free at [partners.viator.com/signup](https://partners.viator.com/signup))
-to turn it on.
+### Events
 
-There's no fallback here at all — no generic suggestion cards, no
-Google/TripAdvisor search links. Every card shown is a real Viator listing
-with an affiliate link attached, so all traffic from this section has a
-chance to earn commission. If Viator isn't configured, or no activities are
-found for the hometown entered, the section just says so plainly instead of
-sending anyone to a non-affiliate link.
+Real ticketed events (concerts, sport, theatre) near the user's hometown
+during each break, via Ticketmaster's Discovery API (`lib/ticketmaster.js`).
+Configure `TICKETMASTER_API_KEY` to turn it on — leave it blank to hide the
+events section entirely, no placeholder shown.
 
-**Known unverified area:** the endpoints, auth, and destination-lookup
-fields in `lib/viator.js` are confirmed against Viator's published API
-docs. The exact field names inside an individual `/search/products` result
-(title, image, price, rating) are a best-effort mapping, since Viator's
-docs didn't expose a full sample response for that endpoint and this dev
-environment has no network access to Viator's API to verify live. The code
-logs the raw key names of the first result it gets back
+### Things to do — real activities, never a dead end
+
+Shown as a fallback specifically when a break has **no real flight fare and
+no event** — never replacing real flights/events, only filling the gap when
+neither exists:
+
+1. **Viator** (`lib/viator.js`), if `VIATOR_API_KEY`/`VIATOR_PID`/`VIATOR_MCID`
+   are configured — real, bookable local tours/activities with a trackable
+   affiliate link.
+2. **Free public spots** (`lib/activities.js`), if Viator isn't configured or
+   has nothing for that hometown — real places sourced live from
+   OpenStreetMap (beaches, parks, lookouts, nature reserves near the user's
+   geocoded hometown), no affiliate link, just a map link, because a beach
+   doesn't need one.
+
+There's still no generic/mock fallback below that — if neither source has
+anything, the section just doesn't render.
+
+**Known unverified area (Viator):** the endpoints, auth, and
+destination-lookup fields in `lib/viator.js` are confirmed against Viator's
+published API docs. The exact field names inside an individual
+`/search/products` result (title, image, price, rating) are a best-effort
+mapping, since Viator's docs didn't expose a full sample response for that
+endpoint. The code logs the raw key names of the first result it gets back
 (`[viator] sample raw product keys: ...`) — check that log against what
-`normalizeProduct()` in `lib/viator.js` expects the first time you get a
-real API key, and adjust the field names there if anything looks off
-(e.g. missing prices or images on cards that should have them).
+`normalizeProduct()` expects the first time you get a real API key.
 
 ## Accounts — email/password and Google Sign-In
 
@@ -139,29 +169,84 @@ testing only — verify your own domain at
 [resend.com/domains](https://resend.com/domains) before sending real users
 real reset emails from it.
 
-## Terms and Conditions
+## Break-reminder emails
 
-`public/terms.html` is a general-purpose Terms and Conditions template —
+Also sent via Resend, separate from password resets. Once a day
+(`runDigestSweep()` in `server.js`), the server checks accounts that opted
+into marketing emails (checkbox at signup, or toggle in Profile) and sends
+anyone whose next break is 5–7 days away a one-off reminder — real deals,
+events, or things to do for that specific break.
+
+- **Roster-based, not calendar-based.** Only ever tied to the account's own
+  upcoming break, never a fixed weekly/monthly schedule.
+- **Once per break, ever** — deduped via `hasDigestSent()`/`recordDigestSent()`
+  in `lib/store.js`, so nobody gets the same reminder twice.
+- **Skips sending if there's genuinely nothing to report** (no deals, no
+  events, no activities) — an empty email is worse than no email.
+- **Always includes a working unsubscribe link** (`/api/unsubscribe?token=...`),
+  effective immediately, no login needed — required for Australian Spam Act
+  2003 compliance, see `public/terms.html` section 5 and `public/privacy.html`.
+
+`PUBLIC_BASE_URL` must be set to your real deployed domain (there's no
+incoming request to derive it from for a background job, unlike password
+resets, which reuse the request's own host). Leave `RESEND_API_KEY` blank to
+disable this entirely.
+
+## Personal stats and admin dashboard
+
+- **`/` → My Stats tab** (logged-in users): their own upcoming breaks, days
+  to next break, and which destinations they've clicked into — built from
+  their own account activity, not projections.
+- **`/admin.html`**: site-wide traffic, sign-ups, deal/event clicks,
+  marketing opt-ins, feedback, and 30-day trend charts with week-over-week
+  growth badges (all zero-dependency inline SVG, no charting library).
+  Gated by `ADMIN_EMAIL` (comma-separated list) — log in as that email on
+  the site first, then visit `/admin.html`; anyone else gets a 403 from
+  `/api/admin/stats` even if they guess the URL.
+
+## Feedback widget
+
+A small persistent "💬 Feedback" bubble (bottom-right, on every page except
+the legal pages and admin) — one tap to leave a reaction (love/good/meh/
+frustrated), optional topic tags, and an optional free-text comment.
+Anonymous-safe (recorded whether or not you're logged in). Shows up in the
+admin dashboard with an unread-count indicator (`nb_admin_feedback_seen` in
+the admin's own browser local storage, not shared server state).
+
+## Calendar sync
+
+Logged-in or anonymous, from the dashboard's "📅 Sync to calendar" button:
+a subscribe link (`/calendar/<token>.ics`) that Google/Apple/Outlook
+calendar can subscribe to, staying in sync automatically as the roster
+changes, or a one-off `.ics` download. The token is a random, unguessable
+string (`lib/calendar.js`/`lib/auth.js`) — treat it like a password, since
+anyone with the link can see that account's upcoming breaks with no other
+authentication.
+
+## Terms and Conditions / Privacy Policy
+
+`public/terms.html` and `public/privacy.html` are general-purpose templates
 covering the affiliate-commission model, the "cached fares, not live
-quotes" disclaimer, account rules, data handling, and a liability/consumer-law
-section. **It's a starting point, not legal advice** — have it reviewed
-before relying on it commercially, especially if you're serving users
-outside Australia.
+quotes" disclaimer, account rules, break-reminder emails, data handling
+(including every third-party service actually called and what each
+receives), and a liability/consumer-law section. **They're a starting
+point, not legal advice** — have them reviewed before relying on them
+commercially, especially if you're serving users outside Australia.
 
-Accepting it is mandatory, not just a link in the footer: the checkbox on
-the signup form must be checked before `POST /api/auth/signup` will create
-an account, and the same applies to a brand-new account created via Google
-Sign-In (an existing account signing back in via Google is never asked to
-re-accept). The server enforces this — the frontend checkbox is a
+Accepting the Terms is mandatory, not just a link in the footer: the
+checkbox on the signup form must be checked before `POST /api/auth/signup`
+will create an account, and the same applies to a brand-new account created
+via Google Sign-In (an existing account signing back in via Google is never
+asked to re-accept). The server enforces this — the frontend checkbox is a
 convenience, not the actual gate — and each account records *when* and
-*which version* of the Terms it accepted (`termsAcceptedAt`,
-`termsVersion` in `data.json`), so bumping the terms later and requiring
-re-acceptance from existing users is possible without extra plumbing.
+*which version* of the Terms it accepted (`termsAcceptedAt`, `termsVersion`
+in `data.json`), so bumping the terms later and requiring re-acceptance from
+existing users is possible without extra plumbing.
 
 ## Profile — display name and avatar
 
 Logged-in users get a **Profile** page (linked from the header) to set a
-display name and upload an avatar. A couple of implementation notes:
+display name, upload an avatar, and toggle break-reminder emails on/off.
 
 - Avatars are uploaded as a base64 data URL in a normal JSON body, not a
   multipart form — Node's built-in `http` module doesn't parse multipart
@@ -182,7 +267,8 @@ display name and upload an avatar. A couple of implementation notes:
 ## Why no `npm install`?
 
 The whole backend is built on Node's built-ins only (`http`, `fetch`,
-`crypto`, `fs`) — no Express, no Stripe SDK, no database engine. That means:
+`crypto`, `fs`) — no Express, no Stripe SDK, no database engine, no
+charting library. That means:
 
 - `npm install` is not required — there's nothing to install.
 - Nothing here needs native compilation or a database server.
@@ -211,25 +297,32 @@ here** below.
    # equivalent to: node server.js
    ```
 4. Open **http://localhost:3000**, fill in Setup (including your home
-   airport, e.g. `PER`), save, and click a break to see real fares.
+   airport, e.g. `PER`), save, and click a break to see real fares (and
+   backfilled destination options if the exact route/dates have no cached
+   fare yet).
 
-Without a token, the app still runs fine — every break just shows
-illustrative mock deals instead of real ones.
+Without `TRAVELPAYOUTS_TOKEN` set, the app still runs fine — it just prompts
+for a home airport and doesn't show any flight options at all. There's no
+mock/illustrative fallback anywhere in this app.
 
 ## Environment variables
 
 | Variable | Required | Default | Notes |
 |---|---|---|---|
-| `TRAVELPAYOUTS_TOKEN` | For real flight prices | — | From your Travelpayouts account. Without it, breaks just prompt the user to add a home airport — no fake prices. |
-| `TRAVELPAYOUTS_MARKER` | For commission tracking | `749343` | Your affiliate ID — attached to every booking link so completed bookings are credited to you. |
-| `VIATOR_API_KEY` | For real activities | — | From your Viator partner account. Without it, "things to do" shows generic suggestions instead of real listings. |
+| `TRAVELPAYOUTS_TOKEN` | For real flight prices | — | From your Travelpayouts account. Without it, breaks just prompt the user to add a home airport — no fake prices, no options shown. |
+| `TRAVELPAYOUTS_MARKER` | For commission tracking | `749343` | Your affiliate ID — attached to every booking link and every backfilled "Check flights" live-search link, so completed bookings are credited to you. |
+| `VIATOR_API_KEY` | For real activities | — | From your Viator partner account. Without it, the things-to-do fallback uses free OpenStreetMap-sourced public spots instead. |
 | `VIATOR_PID` | For commission tracking | — | Your Viator Partner ID — attached to every activity booking link. |
 | `VIATOR_MCID` | For commission tracking | — | Your Viator campaign ID — also attached to booking links. |
+| `TICKETMASTER_API_KEY` | For real events | — | Consumer Key from [developer.ticketmaster.com](https://developer.ticketmaster.com). Leave blank to hide the events section entirely. |
+| `TICKETMASTER_AFFILIATE_LINK_PREFIX` | No | — | Only for routing Ticketmaster links through a custom Impact deep-link instead of Ticketmaster's own auto-tracking. See `.env.example` for the normal (recommended) affiliate setup path. |
 | `GOOGLE_CLIENT_ID` | For Google Sign-In | — | Not secret — from Google Cloud Console (see **Accounts** above). Leave blank to hide the Google button; email/password login always works regardless. |
-| `RESEND_API_KEY` | For real password-reset emails | — | From [resend.com/api-keys](https://resend.com/api-keys). Without it, reset links are just logged to the server console. |
-| `EMAIL_FROM` | No | `Next Break <onboarding@resend.dev>` | Sender address on reset emails — must be a domain verified in your Resend account for real (non-test) sending. |
+| `RESEND_API_KEY` | For real emails | — | From [resend.com/api-keys](https://resend.com/api-keys). Powers both password-reset emails and break-reminder digest emails. Without it, reset links are just logged to the server console and the digest sweep is disabled entirely. |
+| `EMAIL_FROM` | No | `Next Break <onboarding@resend.dev>` | Sender address on all emails — must be a domain verified in your Resend account for real (non-test) sending. |
+| `PUBLIC_BASE_URL` | For break-reminder emails | `https://nextbreak.com.au` | Used to build links inside digest emails (unlike password resets, there's no incoming request to derive the host from for a background job). Set to your real deployed domain. |
+| `ADMIN_EMAIL` | For the admin dashboard | — | Comma-separated list of account emails allowed to load `/admin.html` and `/api/admin/stats`. Log in as that email first, then visit `/admin.html`. Leave blank to disable the dashboard for everyone. |
 | `PORT` | No | `3000` | |
-| `DATA_FILE` | No | `./data.json` | Where user settings are stored |
+| `DATA_FILE` | No | `./data.json` | Where user settings, accounts, and logs are stored. |
 | `STRIPE_SECRET_KEY` | No | — | Unused (paywall is off — see below). Only needed if you re-enable it. |
 | `STRIPE_WEBHOOK_SECRET` | No | — | Unused unless you re-enable the paywall and wire up webhooks. |
 | `UNLOCK_FEE_CENTS` | No | `500` | Unused unless you re-enable the paywall. |
@@ -238,7 +331,7 @@ illustrative mock deals instead of real ones.
 
 An earlier version of this app gated deals behind a small Stripe Checkout
 fee. That's been removed in favor of the affiliate-commission model above —
-no fee, no blocker between seeing a deal and booking it. The Stripe
+no fee, no blocker between seeing an option and booking it. The Stripe
 integration (`lib/stripeClient.js`, `/api/checkout*`, `/api/stripe/webhook`)
 is still in the codebase, fully implemented and tested, but dormant and
 unused. Safe to ignore, or delete if you want to slim things down.
@@ -246,68 +339,82 @@ unused. Safe to ignore, or delete if you want to slim things down.
 ## Project structure
 
 ```
-server.js                 HTTP server + API routes
-lib/deals.js               Break date/scheduling logic (pure functions)
-lib/travelpayouts.js        Real flight price lookups + affiliate booking links
-lib/viator.js                 Real activity listings + affiliate booking links
-lib/store.js                   JSON-file persistence (user settings, accounts, sessions)
-lib/auth.js                     Password hashing + token generation (built-in crypto only)
-lib/googleAuth.js                Google ID token verification (tokeninfo endpoint)
-lib/email.js                      Password-reset email sending (Resend REST API)
-lib/stripeClient.js                Raw Stripe REST calls (dormant, unused — see above)
-lib/links.js                        Search-link helpers (generic-suggestion fallback links)
-public/index.html                     Frontend (vanilla JS, no build step)
-public/terms.html                      Terms and Conditions page
-data/avatars/                           Uploaded profile pictures (created at runtime, next to data.json)
+server.js                    HTTP server + API routes
+lib/deals.js                 Break date/scheduling logic (pure functions)
+lib/travelpayouts.js         Real flight price lookups, affiliate links, backfill destinations
+lib/viator.js                Real activity listings + affiliate booking links
+lib/activities.js            Free public spots near a hometown (OpenStreetMap), no affiliate link
+lib/ticketmaster.js          Real event listings + affiliate booking links
+lib/weather.js               Short-range forecast / historical-average weather per destination+date
+lib/fx.js                    Currency exchange rates for "while you're there" context
+lib/geo.js                   Distance + timezone-diff between origin and destination (static lookups)
+lib/digest.js                Pure logic for "should this break get a reminder email right now"
+lib/email.js                 Password-reset + break-reminder email sending (Resend REST API)
+lib/calendar.js              Builds the .ics calendar feed
+lib/store.js                 JSON-file persistence (settings, accounts, sessions, clicks, feedback)
+lib/auth.js                  Password hashing + token generation (built-in crypto only)
+lib/googleAuth.js            Google ID token verification (tokeninfo endpoint)
+lib/stripeClient.js          Raw Stripe REST calls (dormant, unused — see above)
+lib/links.js                 Dormant search-link helpers, unused (kept in case a non-affiliate fallback is wanted again)
+public/index.html            Main frontend (vanilla JS, no build step)
+public/admin.html            Admin dashboard (traffic, clicks, feedback, trend charts)
+public/terms.html            Terms and Conditions page
+public/privacy.html          Privacy Policy page
+data/avatars/                Uploaded profile pictures (created at runtime, next to data.json)
+test_*.mjs                   Zero-dependency test suite (node test_<name>.mjs), one file per feature area
 ```
 
 ## API endpoints
 
 - `GET /api/breaks` — lightweight list of upcoming breaks (dates, status)
-  plus `realPricesAvailable` (whether this user can get real prices right
-  now). Deliberately excludes deals, so loading the dashboard never waits
-  on flight-price lookups.
+  plus `realPricesAvailable`. Deliberately excludes deals, so loading the
+  dashboard never waits on flight-price lookups.
 - `GET /api/deals?breakKey=...` — fetches deals for one specific break,
-  called lazily when the user expands it in the accordion. Real fares only
-  (see above) — no mock fallback.
-- `GET /api/activities` — real Viator activities for the user's saved
-  hometown, or a `not-configured`/`no-results` state if unavailable.
-- `PUT /api/settings` — save Setup (hometown, home airport, currency,
-  roster pattern or manual breaks).
-- `POST /api/auth/signup` — create an account (`{email, password}`), sets a
-  session cookie, migrates any in-progress anonymous setup.
-- `POST /api/auth/login` — log into an existing account, same behavior.
+  called lazily when the user expands it. Real fares first, backfilled to a
+  minimum of 3 destinations — see **Real data only** above.
+- `GET /api/events?breakKey=...` — real Ticketmaster events near the user's
+  hometown during that break.
+- `GET /api/activities` — real Viator activities, or free OpenStreetMap
+  public spots, for the user's saved hometown.
+- `PUT /api/settings` / `GET /api/settings` — save/read Setup (hometown,
+  home airport, currency, interests, roster pattern or manual breaks).
+- `POST /api/deal-click` / `POST /api/event-click` — fire-and-forget click
+  tracking (anonymous-safe), feeds personalisation and admin stats.
+- `POST /api/feedback` — records a feedback-widget submission (anonymous-safe).
+- `GET /api/unsubscribe?token=...` — unsubscribes an account from
+  break-reminder emails; the link every digest email includes.
+- `GET /api/calendar-token` — returns this user's `.ics` subscribe URL.
+- `GET /calendar/<token>.ics` — the actual calendar feed (outside `/api/`,
+  no auth header, fetched unattended by calendar apps).
+- `GET /api/stats` — the logged-in user's own account activity (My Stats tab).
+- `GET /api/admin/stats` — site-wide stats; 403 unless the logged-in email
+  is in `ADMIN_EMAIL`.
+- `POST /api/auth/signup` / `POST /api/auth/login` — create/log into an
+  account, sets a session cookie, migrates any in-progress anonymous setup.
 - `POST /api/auth/google` — log in/sign up via a Google ID token
   (`{credential}`), verified server-side against Google.
 - `POST /api/auth/logout` — clear the session cookie.
-- `GET /api/auth/me` — current login state (`{loggedIn, email, googleClientId}`);
-  `googleClientId` is `null` if Google Sign-In isn't configured, which is
-  what the frontend uses to decide whether to show the Google button.
-- `POST /api/auth/forgot-password` — `{email}`, always returns the same
-  generic message; emails a reset link if the account exists.
-- `POST /api/auth/reset-password` — `{token, password}`, sets a new
-  password and invalidates all existing sessions for that account.
-- `GET /api/profile` — `{email, displayName, avatarUrl}` for the logged-in
-  account. Requires a real session (401 otherwise, even with a valid
-  anonymous `X-User-Id`).
-- `PUT /api/profile` — `{displayName?, avatarDataUrl?}`, updates only the
-  fields provided. `avatarDataUrl` is a `data:image/...;base64,...` string;
-  see **Profile** above for size/format limits.
+- `GET /api/auth/me` — current login state
+  (`{loggedIn, email, googleClientId, isAdmin}`).
+- `POST /api/auth/forgot-password` / `POST /api/auth/reset-password` —
+  password-reset flow (see **Forgot password** above).
+- `GET /api/profile` / `PUT /api/profile` — display name, avatar, and
+  marketing opt-in for the logged-in account. Requires a real session.
 
 ## Deploying
 
 This needs a host that keeps a Node process running continuously (not a
-static site host, not a serverless function — the JSON data store needs a
-persistent disk). Two ready-made configs are included:
+static site host, not a serverless function — the JSON data store and
+uploaded avatars need a persistent disk). Two ready-made configs are
+included:
 
 **Render** (`render.yaml`) — easiest option, has a free/starter tier:
 1. Push this folder to a GitHub repo.
 2. In the Render dashboard: **New → Blueprint**, point it at the repo.
    Render reads `render.yaml` and creates the web service plus a 1GB
    persistent disk automatically.
-3. In the service's **Environment** tab, paste your real value into
-   `TRAVELPAYOUTS_TOKEN` (left blank in the blueprint on purpose — never
-   commit real secrets to git).
+3. In the service's **Environment** tab, paste your real values in (left
+   blank in the blueprint on purpose — never commit real secrets to git).
 4. Once it's live at `*.onrender.com`, go to **Settings → Custom Domains**
    and add `www.nextbreak.com.au` (and `nextbreak.com.au` with a redirect
    to www, or vice versa — pick one as canonical). Render gives you a
@@ -326,7 +433,7 @@ fly certs add www.nextbreak.com.au
 `fly certs add` prints the DNS records to add at your registrar.
 
 Either way, `TRAVELPAYOUTS_MARKER` and `PORT` are already set as plain env
-vars in the config — only the token is a secret you add yourself in the
+vars in the config — only tokens/keys are secrets you add yourself in the
 host's dashboard/CLI, same handling as everything else sensitive so far.
 
 ## Known limitations
@@ -340,22 +447,26 @@ host's dashboard/CLI, same handling as everything else sensitive so far.
   every change — it'll get slow and is not safe for concurrent writes at
   any real scale. Swap in Postgres/SQLite-with-a-real-driver before you
   have more than a handful of users.
-- **Real prices are a cache, not live search.** Some destinations/dates
-  will come back with no cached fare and fall back to mock — this is
-  inherent to how the Travelpayouts Data API works, not a bug to fix.
-- **No control over the booking experience.** "Book this fare" hands the
-  user off to Aviasales/the airline — there's no way to guarantee price
-  accuracy at the moment of click, and refunds/changes happen entirely on
-  the airline/OTA's side, not in this app.
+- **Real fares are a cache, not a live GDS search.** Some destinations/dates
+  will genuinely have no cached fare — this is inherent to how the
+  Travelpayouts Data API works, not a bug to fix. That's exactly what the
+  backfill destinations (see **Real data only**) exist to soften, without
+  ever inventing a price.
+- **No control over the booking experience.** "Book this fare"/"Check
+  flights" hand the user off to Aviasales/the airline — there's no way to
+  guarantee price accuracy at the moment of click, and refunds/changes
+  happen entirely on the airline/OTA's side, not in this app.
 
 ## Where to go from here
 
 - Deploy: this needs a host that runs a persistent Node process (Render,
   Railway, Fly.io, a VPS) — not a pure static host.
-- Have a lawyer review `public/terms.html` before relying on it commercially.
+- Have a lawyer review `public/terms.html` and `public/privacy.html` before
+  relying on them commercially.
 - Add a real database once `data.json` starts to strain.
 - Expand `REAL_DESTINATIONS` in `lib/travelpayouts.js` with more curated
   destinations to increase the odds of a cache hit per break.
 - Track commission performance from your
-  [Travelpayouts dashboard](https://www.travelpayouts.com) once real users
-  start clicking through.
+  [Travelpayouts dashboard](https://www.travelpayouts.com),
+  [Viator partner dashboard](https://partners.viator.com), and Ticketmaster's
+  Impact account once real users start clicking through.

@@ -15,7 +15,7 @@ import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
   setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
-  setAccountProfile, listAccounts, recordDealClick, listDealClicks, recordVisit, getVisitsByDay,
+  setAccountProfile, listAccounts, recordDealClick, listDealClicks, recordEventClick, listEventClicks, recordVisit, getVisitsByDay,
   getCalendarTokenForUser, setCalendarToken, getUserIdForCalendarToken, _dataFilePath
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
@@ -664,7 +664,14 @@ async function handleLogout(req, res) {
 async function handleMe(req, res) {
   const cookies = parseCookies(req);
   const email = getSessionEmail(cookies[SESSION_COOKIE]);
-  sendJson(res, 200, { loggedIn: !!email, email: email || null, googleClientId: GOOGLE_CLIENT_ID || null });
+  // isAdmin drives whether the frontend shows a nav link to /admin.html at
+  // all (see renderAccountArea in index.html) — purely a discoverability
+  // convenience, not the actual access control. /admin.html and
+  // /api/admin/stats both re-check ADMIN_EMAILS themselves server-side
+  // regardless of what this flag says, so a non-admin can't see real data
+  // even if they somehow forced the link to render.
+  const isAdmin = !!(email && ADMIN_EMAILS.includes(email.toLowerCase()));
+  sendJson(res, 200, { loggedIn: !!email, email: email || null, googleClientId: GOOGLE_CLIENT_ID || null, isAdmin });
 }
 
 // Always responds with the same generic message regardless of whether the
@@ -895,25 +902,48 @@ async function handleGetDeals(req, res, userId, query) {
 // clicks "Book this fare" on. A click nudges up the affinity score for
 // every tag on that destination (see selectDeals/pickBest in
 // lib/travelpayouts.js) — capped per-tag influence there, so this can't
-// snowball into always showing the same handful of places. Logged-in only,
-// same reasoning as buildPersonalizationProfile above.
+// snowball into always showing the same handful of places. The affinity
+// nudge itself only makes sense for a logged-in account (it lives on their
+// saved settings), but the click is still logged for the admin dashboard's
+// aggregate count either way, so anonymous browsing (which this app fully
+// supports) isn't invisible to "how many people click travel deals."
 async function handleDealClick(req, res) {
-  const email = requireSessionEmail(req, res);
-  if (!email) return;
-
   const body = await readJsonBody(req);
   const dest = REAL_DESTINATIONS.find(d => d.iata === body.iata);
   if (!dest) return sendJson(res, 400, { error: 'Unknown destination.' });
 
-  const settings = getSettings(email);
-  const affinity = { ...(settings.dealAffinity || {}) };
-  for (const tag of dest.tags || []) affinity[tag] = (affinity[tag] || 0) + 1;
-  saveSettings(email, { dealAffinity: affinity });
+  const cookies = parseCookies(req);
+  const email = getSessionEmail(cookies[SESSION_COOKIE]);
+  if (email) {
+    const settings = getSettings(email);
+    const affinity = { ...(settings.dealAffinity || {}) };
+    for (const tag of dest.tags || []) affinity[tag] = (affinity[tag] || 0) + 1;
+    saveSettings(email, { dealAffinity: affinity });
+  }
 
   // Separate from the affinity nudge above — this is a durable, aggregate
-  // log for the admin dashboard (which destinations get clicked, by whom,
-  // when), not something used to steer deal selection.
+  // log for the admin dashboard (which destinations get clicked, when, and
+  // by whom if logged in), not something used to steer deal selection.
   recordDealClick(email, { iata: dest.iata, name: dest.name });
+
+  sendJson(res, 200, { ok: true });
+}
+
+// Same shape and same anonymous-inclusive reasoning as handleDealClick
+// above, for the Ticketmaster "Tickets ->" link. There's no fixed catalog
+// to validate an event id against (unlike REAL_DESTINATIONS for flights),
+// so this just does basic shape/length checks to keep the log honest and
+// stop it being used to stuff arbitrary junk into data.json.
+async function handleEventClick(req, res) {
+  const body = await readJsonBody(req);
+  const id = typeof body.id === 'string' ? body.id.slice(0, 200) : null;
+  const name = typeof body.name === 'string' ? body.name.slice(0, 200) : null;
+  if (!id && !name) return sendJson(res, 400, { error: 'Missing event id/name.' });
+
+  const cookies = parseCookies(req);
+  const email = getSessionEmail(cookies[SESSION_COOKIE]);
+
+  recordEventClick(email, { id, name });
 
   sendJson(res, 200, { ok: true });
 }
@@ -1012,6 +1042,7 @@ async function handleAdminStats(req, res) {
 
   const accounts = listAccounts();
   const clicks = listDealClicks();
+  const eventClicks = listEventClicks();
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const now = Date.now();
@@ -1028,12 +1059,24 @@ async function handleAdminStats(req, res) {
   }
   const topDestinations = [...byDestination.values()].sort((a, b) => b.count - a.count).slice(0, 10);
 
+  const byEvent = new Map();
+  for (const c of eventClicks) {
+    const key = c.id || c.name || 'unknown';
+    if (!byEvent.has(key)) byEvent.set(key, { id: c.id, name: c.name || key, count: 0 });
+    byEvent.get(key).count++;
+  }
+  const topEvents = [...byEvent.values()].sort((a, b) => b.count - a.count).slice(0, 10);
+
   const recentSignups = [...accounts]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 25)
     .map(a => ({ email: a.email, createdAt: a.createdAt, marketingOptIn: !!a.marketingOptIn, signedUpVia: a.hasGoogle ? 'Google' : 'Password' }));
 
   const recentClicks = [...clicks]
+    .sort((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, 25);
+
+  const recentEventClicks = [...eventClicks]
     .sort((a, b) => new Date(b.at) - new Date(a.at))
     .slice(0, 25);
 
@@ -1055,28 +1098,53 @@ async function handleAdminStats(req, res) {
   }
   const dailyVisits = days.slice(-30).map(date => ({ date, count: visitsByDay[date] })).reverse();
 
+  const visits30 = sumLastNDays(30);
+  const signups30 = accounts.filter(a => withinDays(a.createdAt, 30)).length;
+  const dealClicks30 = clicks.filter(c => withinDays(c.at, 30)).length;
+  const eventClicks30 = eventClicks.filter(c => withinDays(c.at, 30)).length;
+  // Rough, deidentified engagement ratios over the last 30 days — "rough"
+  // because a single visitor can account for multiple visits/clicks (there's
+  // no per-visitor id to dedupe against, by design, see recordVisit), so
+  // read these as engagement intensity, not a literal "% of people who...".
+  const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
+
   sendJson(res, 200, {
     accounts: {
       total: accounts.length,
       last7Days: accounts.filter(a => withinDays(a.createdAt, 7)).length,
-      last30Days: accounts.filter(a => withinDays(a.createdAt, 30)).length,
+      last30Days: signups30,
       marketingOptIn: accounts.filter(a => a.marketingOptIn).length
     },
     dealClicks: {
       total: clicks.length,
       last7Days: clicks.filter(c => withinDays(c.at, 7)).length,
-      last30Days: clicks.filter(c => withinDays(c.at, 30)).length,
+      last30Days: dealClicks30,
       topDestinations
+    },
+    eventClicks: {
+      total: eventClicks.length,
+      last7Days: eventClicks.filter(c => withinDays(c.at, 7)).length,
+      last30Days: eventClicks30,
+      topEvents
     },
     visits: {
       total: days.reduce((sum, d) => sum + visitsByDay[d], 0),
       today: visitsByDay[new Date().toISOString().slice(0, 10)] || 0,
       last7Days: sumLastNDays(7),
-      last30Days: sumLastNDays(30),
+      last30Days: visits30,
       dailyVisits
     },
+    engagement: {
+      // Per-visit rates over the last 30 days, e.g. 4.2 means "4.2 signups
+      // per 100 visits" — useful as a trend to watch even though it's not a
+      // true unique-visitor conversion rate (see note above).
+      signupsPer100Visits: pct(signups30, visits30),
+      dealClicksPer100Visits: pct(dealClicks30, visits30),
+      eventClicksPer100Visits: pct(eventClicks30, visits30)
+    },
     recentSignups,
-    recentClicks
+    recentClicks,
+    recentEventClicks
   });
 }
 
@@ -1214,6 +1282,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/profile' && req.method === 'GET') return await handleGetProfile(req, res);
       if (pathname === '/api/profile' && req.method === 'PUT') return await handlePutProfile(req, res);
       if (pathname === '/api/deal-click' && req.method === 'POST') return await handleDealClick(req, res);
+      if (pathname === '/api/event-click' && req.method === 'POST') return await handleEventClick(req, res);
       if (pathname === '/api/admin/stats' && req.method === 'GET') return await handleAdminStats(req, res);
       if (pathname === '/api/stats' && req.method === 'GET') return await handleGetStats(req, res);
 

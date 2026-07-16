@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Next Break — Admin</title>
+<title>Next Break | Admin</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/logo-favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,22 +66,46 @@
       <button class="btn secondary" onclick="loadStats()">Refresh</button>
     </div>
 
+    <!-- The 4 headline numbers, deidentified: no email or per-visitor id
+         attached to any of these, just plain aggregate counts. -->
     <div class="cards">
-      <div class="card"><div class="n" id="cVisitsToday">–</div><div class="l">Visits today</div></div>
-      <div class="card"><div class="n" id="cVisits7">–</div><div class="l">Visits in last 7 days</div></div>
-      <div class="card"><div class="n" id="cVisits30">–</div><div class="l">Visits in last 30 days</div></div>
-      <div class="card"><div class="n" id="cAccountsTotal">–</div><div class="l">Total sign-ups</div></div>
-      <div class="card"><div class="n" id="cAccounts7">–</div><div class="l">New sign-ups in last 7 days</div></div>
-      <div class="card"><div class="n" id="cAccounts30">–</div><div class="l">New sign-ups in last 30 days</div></div>
-      <div class="card"><div class="n" id="cMarketingOptIn">–</div><div class="l">Opted in to marketing</div></div>
-      <div class="card"><div class="n" id="cClicksTotal">–</div><div class="l">Total deal clicks</div></div>
-      <div class="card"><div class="n" id="cClicks7">–</div><div class="l">Clicks in last 7 days</div></div>
+      <div class="card"><div class="n" id="cVisits30">–</div><div class="l">Site visits, last 30 days</div></div>
+      <div class="card"><div class="n" id="cAccounts30">–</div><div class="l">Accounts created, last 30 days</div></div>
+      <div class="card"><div class="n" id="cClicks30">–</div><div class="l">Travel deal clicks, last 30 days</div></div>
+      <div class="card"><div class="n" id="cEventClicks30">–</div><div class="l">Event ticket clicks, last 30 days</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>All-time and 7-day detail</h2>
+      <div class="cards" style="margin-bottom:0;">
+        <div class="card"><div class="n" id="cVisitsToday">–</div><div class="l">Visits today</div></div>
+        <div class="card"><div class="n" id="cVisits7">–</div><div class="l">Visits in last 7 days</div></div>
+        <div class="card"><div class="n" id="cAccountsTotal">–</div><div class="l">Total accounts, all time</div></div>
+        <div class="card"><div class="n" id="cAccounts7">–</div><div class="l">New accounts in last 7 days</div></div>
+        <div class="card"><div class="n" id="cMarketingOptIn">–</div><div class="l">Accounts opted in to marketing</div></div>
+        <div class="card"><div class="n" id="cClicksTotal">–</div><div class="l">Total deal clicks, all time</div></div>
+        <div class="card"><div class="n" id="cClicks7">–</div><div class="l">Deal clicks in last 7 days</div></div>
+        <div class="card"><div class="n" id="cEventClicksTotal">–</div><div class="l">Total event clicks, all time</div></div>
+        <div class="card"><div class="n" id="cEventClicks7">–</div><div class="l">Event clicks in last 7 days</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Engagement, last 30 days</h2>
+      <div class="muted" style="font-size:12.5px;margin-bottom:10px;">
+        Rough intensity, not a true unique-visitor conversion rate (there's no per-visitor id to dedupe against, by design). Still useful as a trend to watch over time.
+      </div>
+      <div class="cards" style="margin-bottom:0;">
+        <div class="card"><div class="n" id="cSignupRate">–</div><div class="l">Sign-ups per 100 visits</div></div>
+        <div class="card"><div class="n" id="cDealClickRate">–</div><div class="l">Deal clicks per 100 visits</div></div>
+        <div class="card"><div class="n" id="cEventClickRate">–</div><div class="l">Event clicks per 100 visits</div></div>
+      </div>
     </div>
 
     <div class="panel">
       <h2>Site visits, last 30 days</h2>
       <div class="muted" style="font-size:12.5px;margin-bottom:10px;">
-        A plain daily count, no cookies or per-visitor tracking — consistent with the Privacy Policy's "no analytics trackers" promise. Days with zero visits aren't shown below.
+        A plain daily count, no cookies or per-visitor tracking. Consistent with the Privacy Policy's "no analytics trackers" promise. Days with zero visits aren't shown below.
       </div>
       <div class="table-wrap">
         <table id="visitsTable">
@@ -104,6 +128,17 @@
     </div>
 
     <div class="panel">
+      <h2>Top events by ticket clicks</h2>
+      <div class="table-wrap">
+        <table id="topEventsTable">
+          <thead><tr><th>Event</th><th>Clicks</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="topEventsEmpty" style="display:none;">No event clicks recorded yet.</div>
+    </div>
+
+    <div class="panel">
       <h2>Recent sign-ups</h2>
       <div class="table-wrap">
         <table id="signupsTable">
@@ -116,13 +151,27 @@
 
     <div class="panel">
       <h2>Recent deal clicks</h2>
+      <div class="muted" style="font-size:12.5px;margin-bottom:10px;">
+        "Anonymous" means the click came from someone who wasn't logged in at the time.
+      </div>
       <div class="table-wrap">
         <table id="clicksTable">
-          <thead><tr><th>Email</th><th>Destination</th><th>When</th></tr></thead>
+          <thead><tr><th>Who</th><th>Destination</th><th>When</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="empty" id="clicksEmpty" style="display:none;">No deal clicks recorded yet.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent event clicks</h2>
+      <div class="table-wrap">
+        <table id="eventClicksTable">
+          <thead><tr><th>Who</th><th>Event</th><th>When</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="eventClicksEmpty" style="display:none;">No event clicks recorded yet.</div>
     </div>
   </div>
 </main>
@@ -191,6 +240,15 @@ async function loadStats(){
   document.getElementById('cMarketingOptIn').textContent = data.accounts.marketingOptIn;
   document.getElementById('cClicksTotal').textContent = data.dealClicks.total;
   document.getElementById('cClicks7').textContent = data.dealClicks.last7Days;
+  document.getElementById('cClicks30').textContent = data.dealClicks.last30Days;
+  document.getElementById('cEventClicksTotal').textContent = data.eventClicks.total;
+  document.getElementById('cEventClicks7').textContent = data.eventClicks.last7Days;
+  document.getElementById('cEventClicks30').textContent = data.eventClicks.last30Days;
+
+  const fmtRate = v => (v == null ? '–' : v.toString());
+  document.getElementById('cSignupRate').textContent = fmtRate(data.engagement.signupsPer100Visits);
+  document.getElementById('cDealClickRate').textContent = fmtRate(data.engagement.dealClicksPer100Visits);
+  document.getElementById('cEventClickRate').textContent = fmtRate(data.engagement.eventClicksPer100Visits);
 
   renderTable('visitsTable', 'visitsEmpty', data.visits.dailyVisits, v =>
     `<tr><td>${v.date}</td><td><span class="pill">${v.count}</span></td></tr>`
@@ -200,12 +258,20 @@ async function loadStats(){
     `<tr><td>${d.name}</td><td class="muted">${d.iata}</td><td><span class="pill">${d.count}</span></td></tr>`
   );
 
+  renderTable('topEventsTable', 'topEventsEmpty', data.eventClicks.topEvents, e =>
+    `<tr><td>${e.name || '–'}</td><td><span class="pill">${e.count}</span></td></tr>`
+  );
+
   renderTable('signupsTable', 'signupsEmpty', data.recentSignups, a =>
     `<tr><td>${a.email}</td><td class="muted">${fmtDateTime(a.createdAt)}</td><td class="muted">${a.signedUpVia}</td><td>${a.marketingOptIn ? '✓' : ''}</td></tr>`
   );
 
   renderTable('clicksTable', 'clicksEmpty', data.recentClicks, c =>
-    `<tr><td>${c.email}</td><td>${c.name || c.iata || '–'}</td><td class="muted">${fmtDateTime(c.at)}</td></tr>`
+    `<tr><td>${c.email || '<span class="muted">Anonymous</span>'}</td><td>${c.name || c.iata || '–'}</td><td class="muted">${fmtDateTime(c.at)}</td></tr>`
+  );
+
+  renderTable('eventClicksTable', 'eventClicksEmpty', data.recentEventClicks, c =>
+    `<tr><td>${c.email || '<span class="muted">Anonymous</span>'}</td><td>${c.name || c.id || '–'}</td><td class="muted">${fmtDateTime(c.at)}</td></tr>`
   );
 }
 

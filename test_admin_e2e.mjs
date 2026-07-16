@@ -80,6 +80,24 @@ assert.strictEqual(r.status, 200, JSON.stringify(r.json));
 r = await req('/api/deal-click', { method: 'POST', headers: { Cookie: fanCookie }, body: { iata: 'ZZZ' } });
 assert.strictEqual(r.status, 400);
 
+// 5c. Anonymous (logged-out) deal click should now succeed and count too -
+// this is the fix for the bug where handleDealClick used to hard-require a
+// session and silently drop anonymous clicks. No Cookie header at all here.
+r = await req('/api/deal-click', { method: 'POST', body: { iata: dest.iata } });
+assert.strictEqual(r.status, 200, 'anonymous deal click should be recorded, not require login: ' + JSON.stringify(r.json));
+
+// 5d. Event-click tracking: logged-in twice on the same event (to prove
+// topEvents aggregation), then once anonymously on a different event, then
+// a malformed request with neither id nor name.
+r = await req('/api/event-click', { method: 'POST', headers: { Cookie: fanCookie }, body: { id: 'evt1', name: 'Test Concert' } });
+assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+r = await req('/api/event-click', { method: 'POST', headers: { Cookie: fanCookie }, body: { id: 'evt1', name: 'Test Concert' } });
+assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+r = await req('/api/event-click', { method: 'POST', body: { id: 'evt2', name: 'Other Show' } });
+assert.strictEqual(r.status, 200, 'anonymous event click should be recorded too: ' + JSON.stringify(r.json));
+r = await req('/api/event-click', { method: 'POST', headers: { Cookie: fanCookie }, body: {} });
+assert.strictEqual(r.status, 400, 'event click with neither id nor name should be rejected');
+
 // 5c. Site visits: hitting the real GET / route (not a mock) should record
 // a visit each time, through the actual server routing in server.js — not
 // calling lib/store.js's recordVisit() directly, so this proves the wiring
@@ -102,11 +120,27 @@ r = await req('/api/admin/stats', { headers: { Cookie: adminCookie } });
 assert.strictEqual(r.status, 200, JSON.stringify(r.json));
 assert.strictEqual(r.json.accounts.total, 3, 'expected 3 accounts total: ' + JSON.stringify(r.json.accounts));
 assert.strictEqual(r.json.accounts.marketingOptIn, 2, 'fan + admin opted in, quiet did not: ' + JSON.stringify(r.json.accounts));
-assert.strictEqual(r.json.dealClicks.total, 2, JSON.stringify(r.json.dealClicks));
+// 2 logged-in clicks + 1 anonymous click, all on the same destination.
+assert.strictEqual(r.json.dealClicks.total, 3, JSON.stringify(r.json.dealClicks));
 assert.strictEqual(r.json.dealClicks.topDestinations[0].iata, dest.iata);
-assert.strictEqual(r.json.dealClicks.topDestinations[0].count, 2);
+assert.strictEqual(r.json.dealClicks.topDestinations[0].count, 3);
 assert.ok(r.json.recentSignups.some(a => a.email === 'fan@example.com' && a.marketingOptIn === true));
 assert.ok(r.json.recentClicks.some(c => c.email === 'fan@example.com' && c.iata === dest.iata));
+assert.ok(r.json.recentClicks.some(c => c.email === null && c.iata === dest.iata), 'anonymous click should be logged with email: null: ' + JSON.stringify(r.json.recentClicks));
+
+// 8b. Event clicks: 2 logged-in on evt1 + 1 anonymous on evt2 = 3 total,
+// evt1 tops the list with 2.
+assert.strictEqual(r.json.eventClicks.total, 3, JSON.stringify(r.json.eventClicks));
+assert.strictEqual(r.json.eventClicks.topEvents[0].id, 'evt1', JSON.stringify(r.json.eventClicks.topEvents));
+assert.strictEqual(r.json.eventClicks.topEvents[0].count, 2);
+assert.ok(r.json.recentEventClicks.some(c => c.email === 'fan@example.com' && c.id === 'evt1'));
+assert.ok(r.json.recentEventClicks.some(c => c.email === null && c.id === 'evt2'), 'anonymous event click should be logged with email: null: ' + JSON.stringify(r.json.recentEventClicks));
+
+// 8c. Engagement rates should be present and numeric (or null if visits
+// were 0, which won't be the case here since we hit GET / three times).
+assert.strictEqual(typeof r.json.engagement.signupsPer100Visits, 'number', JSON.stringify(r.json.engagement));
+assert.strictEqual(typeof r.json.engagement.dealClicksPer100Visits, 'number', JSON.stringify(r.json.engagement));
+assert.strictEqual(typeof r.json.engagement.eventClicksPer100Visits, 'number', JSON.stringify(r.json.engagement));
 
 // 9. Site visits: exactly the 3 GET / requests should be counted (the
 // static-asset request should not have added a 4th), all landing on

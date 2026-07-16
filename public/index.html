@@ -177,6 +177,7 @@
   .top-bar .summary{font-size:13.5px;color:var(--muted);}
   .top-bar .summary b{color:var(--text);}
   footer{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:24px clamp(20px,5vw,56px);border-top:1px solid var(--border);margin-top:20px;background:var(--bg-soft);flex-shrink:0;}
+  footer .footer-brand{display:flex;align-items:center;gap:8px;}
   footer .footer-logo{font-weight:700;font-size:16px;color:var(--text);}
   footer .footer-links{display:flex;gap:20px;font-size:13.5px;}
   footer .footer-links a{color:var(--muted);text-decoration:none;}
@@ -649,7 +650,10 @@
 </main>
 
 <footer>
-  <span class="footer-logo">next break<span style="color:var(--accent2);">.</span></span>
+  <div class="footer-brand">
+    <img src="/logo-favicon.svg" alt="" width="22" height="22" style="border-radius:5px;display:block;">
+    <span class="footer-logo">next break<span style="color:var(--accent2);">.</span></span>
+  </div>
   <div class="footer-links">
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
@@ -681,7 +685,7 @@ async function api(path, opts = {}){
 }
 
 // ---------- auth ----------
-let authState = { loggedIn: false, email: null, googleClientId: null };
+let authState = { loggedIn: false, email: null, googleClientId: null, isAdmin: false };
 let authMode = 'login';
 let googleInitialized = false;
 
@@ -712,6 +716,7 @@ function renderAccountArea(){
       <button class="nav-btn" id="navSetup" onclick="showView('setup')">Setup</button>
       <button class="nav-btn" id="navStats" onclick="showView('stats')">Stats</button>
       <button class="nav-btn" id="navProfile" onclick="showView('profile')">Profile</button>
+      ${authState.isAdmin ? `<a class="nav-btn" href="/admin.html" title="Site-wide traffic, sign-ups and deal clicks. Separate from the 'Stats' tab, which is per-visitor usage">Admin</a>` : ''}
       <span class="account-email">${authState.email}</span>
       <button class="nav-btn" onclick="logout()">Log out</button>
     `;
@@ -1386,8 +1391,24 @@ function dismissInterestsPromo(){
 // link still opens normally in a new tab either way, this never blocks or
 // delays the actual booking click.
 function trackDealClick(iata){
-  if(!authState.loggedIn) return;
+  // Recorded whether or not you're logged in, so the business-side click
+  // count reflects everyone, not just accounts. The click always opens the
+  // booking link regardless of whether this succeeds.
   api('/api/deal-click', { method: 'POST', body: JSON.stringify({ iata }) }).catch(() => {});
+}
+
+function trackEventClick(id, name){
+  api('/api/event-click', { method: 'POST', body: JSON.stringify({ id, name }) }).catch(() => {});
+}
+
+// Safe to drop straight into a single-quoted HTML onclick attribute: JSON
+// stringifies (so embedded double quotes/backslashes are escaped the normal
+// JS way), then HTML-entity-escapes the two characters that could otherwise
+// break out of a single-quoted attribute or open a tag.
+function jsAttr(value){
+  return JSON.stringify(value == null ? '' : value)
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;');
 }
 
 function fmtDateTime(isoWithOffset){
@@ -2108,7 +2129,7 @@ function eventRow(e){
         <div class="meta">${metaParts.join(' · ')}</div>
       </div>
       ${priceLabel ? `<div class="price">${priceLabel}</div>` : ''}
-      <a class="btn secondary small" href="${e.url}" target="_blank" rel="noopener sponsored">Tickets →</a>
+      <a class="btn secondary small" href="${e.url}" target="_blank" rel="noopener sponsored" onclick='trackEventClick(${jsAttr(e.id)}, ${jsAttr(e.title)})'>Tickets →</a>
     </div>
   `;
 }

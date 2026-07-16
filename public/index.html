@@ -1336,6 +1336,12 @@ async function showView(view){
   // solid sticky bar.
   document.querySelector('header').classList.toggle('landing-mode', view==='landing');
   document.getElementById('view-landing').style.display = view==='landing' ? '' : 'none';
+  // The feedback bubble sits bottom-right, same corner as the landing
+  // hero's "Let's get started" CTA, so it's hidden on that view to avoid
+  // overlapping it. It's still reachable from every other view.
+  const feedbackBubbleEl = document.getElementById('feedbackBubble');
+  if(feedbackBubbleEl) feedbackBubbleEl.style.display = view==='landing' ? 'none' : '';
+  if(view==='landing') closeFeedbackPanel();
   // The setup form lives inline below the hero on the landing page for
   // first-time visitors, and as its own full screen when reached directly
   // (header's Setup button, or the dashboard's "Edit setup" button) —

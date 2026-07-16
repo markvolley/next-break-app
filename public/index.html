@@ -201,9 +201,15 @@
      is always one tap away from anywhere in the app. Deliberately kept off
      the legal pages (privacy/terms) and the admin tool, which have their
      own separate <head>s and never load this script. */
-  .feedback-bubble{position:fixed;bottom:20px;right:20px;z-index:60;background:linear-gradient(135deg, var(--accent), var(--accent-hover));color:#101820;border:none;border-radius:var(--radius-pill);padding:12px 18px;font-weight:700;font-size:13.5px;cursor:pointer;box-shadow:0 6px 20px rgba(4,8,12,0.4);display:flex;align-items:center;gap:7px;}
+  /* --footer-avoid is 0px normally, and set to the footer's own rendered
+     height (by JS, via an IntersectionObserver on <footer>) once the
+     footer scrolls into view — otherwise this fixed-position bubble sits
+     on top of the footer links once you scroll to the bottom of a short
+     page. transition on bottom makes that handoff a smooth slide instead
+     of a jump. */
+  .feedback-bubble{position:fixed;bottom:calc(20px + var(--footer-avoid, 0px));right:20px;z-index:60;background:linear-gradient(135deg, var(--accent), var(--accent-hover));color:#101820;border:none;border-radius:var(--radius-pill);padding:12px 18px;font-weight:700;font-size:13.5px;cursor:pointer;box-shadow:0 6px 20px rgba(4,8,12,0.4);display:flex;align-items:center;gap:7px;transition:bottom .18s ease;}
   .feedback-bubble:hover{filter:brightness(1.05);}
-  .feedback-panel{position:fixed;bottom:78px;right:20px;z-index:60;width:min(320px, calc(100vw - 40px));max-height:calc(100vh - 110px);overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 20px 50px rgba(0,0,0,0.45);padding:18px;opacity:0;transform:translateY(8px) scale(.98);pointer-events:none;transition:opacity .16s ease,transform .16s ease;}
+  .feedback-panel{position:fixed;bottom:calc(78px + var(--footer-avoid, 0px));right:20px;z-index:60;width:min(320px, calc(100vw - 40px));max-height:calc(100vh - 110px);overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 20px 50px rgba(0,0,0,0.45);padding:18px;opacity:0;transform:translateY(8px) scale(.98);pointer-events:none;transition:opacity .16s ease,transform .16s ease,bottom .18s ease;}
   .feedback-panel.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
   .feedback-panel h3{margin:0 0 4px;font-size:15px;}
   .feedback-panel .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
@@ -226,8 +232,8 @@
     /* Smaller bubble and tighter offsets on phones so it doesn't crowd the
        thumb-reach zone or sit under a browser's own bottom toolbar. The
        panel still opens above it and is capped to the viewport width. */
-    .feedback-bubble{bottom:14px;right:14px;padding:10px 14px;font-size:12.5px;}
-    .feedback-panel{bottom:64px;right:10px;left:10px;width:auto;}
+    .feedback-bubble{bottom:calc(14px + var(--footer-avoid, 0px));right:14px;padding:10px 14px;font-size:12.5px;}
+    .feedback-panel{bottom:calc(64px + var(--footer-avoid, 0px));right:10px;left:10px;width:auto;}
   }
   .disclaimer{background:var(--panel2);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
   /* Tags (Updated ..., Picked for you) sit on the same line as the
@@ -702,7 +708,7 @@
 
 </main>
 
-<footer>
+<footer id="siteFooter">
   <div class="footer-brand">
     <img src="/logo-favicon.svg" alt="" width="22" height="22" style="border-radius:5px;display:block;">
     <span class="footer-logo">next break<span style="color:var(--accent2);">.</span></span>
@@ -2459,9 +2465,38 @@ function fmtEventDateTime(localDate, localTime){
   return dateStr + ' · ' + withTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
+// The feedback bubble/panel are position:fixed to the bottom-right of the
+// viewport (see .feedback-bubble/.feedback-panel CSS) so they're always
+// reachable while scrolling — but that means they'd sit on top of the
+// footer's own links once the footer scrolls into view on a short page.
+// Rather than hide the bubble there (it's meant to always be reachable),
+// nudge it up by the footer's own height via the --footer-avoid CSS
+// variable the moment the footer becomes visible, and settle it back down
+// once it scrolls back out of view. Recomputed on resize too, since the
+// footer's height changes when its links wrap onto a second line on
+// narrow screens.
+function setupFeedbackFooterAvoidance(){
+  const footer = document.getElementById('siteFooter');
+  if(!footer || !('IntersectionObserver' in window)) return;
+
+  let footerVisible = false;
+  function applyOffset(){
+    document.documentElement.style.setProperty('--footer-avoid', footerVisible ? footer.offsetHeight + 'px' : '0px');
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    footerVisible = entries[0].isIntersecting;
+    applyOffset();
+  }, { rootMargin: '0px' });
+  observer.observe(footer);
+
+  window.addEventListener('resize', () => { if(footerVisible) applyOffset(); });
+}
+
 // ---------- init ----------
 (async function init(){
   renderFeedbackWidget();
+  setupFeedbackFooterAvoidance();
   await refreshAuthState();
   if(authState.googleClientId) loadGoogleScript();
 

@@ -4,7 +4,7 @@
 //   node test_backfill.mjs
 
 import assert from 'node:assert';
-import { buildLiveSearchUrl, pickBackfillDestinations, withBackfill, BACKFILL_MINIMUM, REAL_DESTINATIONS } from './lib/travelpayouts.js';
+import { buildLiveSearchUrl, pickBackfillDestinations, withBackfill, BACKFILL_MINIMUM, REAL_DESTINATIONS, fetchAllRealFares } from './lib/travelpayouts.js';
 
 function brk(key, start, end) {
   return { key, start: new Date(start), end: new Date(end) };
@@ -22,8 +22,19 @@ function brk(key, start, end) {
   assert.strictEqual(parsed.searchParams.get('return_date'), '2026-08-08');
   assert.strictEqual(parsed.searchParams.get('marker'), '12345');
   assert.strictEqual(parsed.searchParams.get('currency'), 'aud');
+  // Regression: leaving locale off entirely doesn't fall back to English on
+  // Aviasales' side -- it lands on their Russian-language default. This
+  // must always be set to something, not left to chance.
+  assert.strictEqual(parsed.searchParams.get('locale'), 'en-gb', 'locale must default to en-gb, not be left unset');
 }
-console.log('Test 1 passed: buildLiveSearchUrl builds a real dated, marked live-search link');
+console.log('Test 1 passed: buildLiveSearchUrl builds a real dated, marked, English-locale live-search link');
+
+// 1b. An explicit locale override is respected (e.g. a future per-user locale setting).
+{
+  const url = buildLiveSearchUrl({ origin: 'PER', destination: 'DPS', departDate: '2026-08-01', returnDate: '2026-08-08', locale: 'de' });
+  assert.strictEqual(new URL(url).searchParams.get('locale'), 'de');
+}
+console.log('Test 1b passed: an explicit locale overrides the en-gb default');
 
 // 2. buildLiveSearchUrl still works with no marker/currency supplied (both optional).
 {
@@ -31,6 +42,7 @@ console.log('Test 1 passed: buildLiveSearchUrl builds a real dated, marked live-
   const parsed = new URL(url);
   assert.strictEqual(parsed.searchParams.has('marker'), false);
   assert.strictEqual(parsed.searchParams.has('currency'), false);
+  assert.strictEqual(parsed.searchParams.get('locale'), 'en-gb', 'locale should still default even with nothing else supplied');
 }
 console.log('Test 2 passed: marker/currency are optional');
 
@@ -123,5 +135,27 @@ console.log('Test 7 passed: withBackfill degrades gracefully when asked for more
   assert.strictEqual(withBackfill(picked, { origin: 'PER', brk: null }), picked);
 }
 console.log('Test 8 passed: withBackfill is a safe no-op without origin/brk');
+
+// 9. Regression: fetchAllRealFares must request an English locale from the
+// Travelpayouts Data API itself, not just the live-search deep link above
+// -- the `link` field it returns for a real, bookable fare (see
+// buildBookingUrl) otherwise defaults to Aviasales' Russian-language site,
+// which is exactly the "Check flights opened in Russian" bug this guards
+// against for the "Book this fare" button too, not only the backfill one.
+{
+  const b = brk('locale-check', '2026-08-01', '2026-08-08');
+  const seenUrls = [];
+  const fakeFetch = async (url) => {
+    seenUrls.push(url.toString());
+    return { ok: true, json: async () => ({ success: true, data: [] }) };
+  };
+  await fetchAllRealFares({ token: 'fake-token', marker: 'MK', origin: 'PER', currency: 'aud', brk: b, batchSize: 2, fetchImpl: fakeFetch });
+  assert.ok(seenUrls.length > 0, 'the fake fetch should have been called at least once');
+  for (const u of seenUrls) {
+    const params = new URL(u).searchParams;
+    assert.strictEqual(params.get('locale'), 'en-gb', `every Travelpayouts request must set locale=en-gb, saw: ${u}`);
+  }
+}
+console.log('Test 9 passed: fetchAllRealFares requests an English locale so real-fare booking links are English too');
 
 console.log('ALL BACKFILL TESTS PASSED');

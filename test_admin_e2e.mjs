@@ -80,6 +80,15 @@ assert.strictEqual(r.status, 200, JSON.stringify(r.json));
 r = await req('/api/deal-click', { method: 'POST', headers: { Cookie: fanCookie }, body: { iata: 'ZZZ' } });
 assert.strictEqual(r.status, 400);
 
+// 5c. Site visits: hitting the real GET / route (not a mock) should record
+// a visit each time, through the actual server routing in server.js — not
+// calling lib/store.js's recordVisit() directly, so this proves the wiring
+// end to end. A request for a static asset (not "/") shouldn't count.
+await req('/');
+await req('/');
+await req('/');
+await req('/logo-favicon.svg');
+
 // 6. A non-admin, logged-in user hitting /api/admin/stats -> 403.
 r = await req('/api/admin/stats', { headers: { Cookie: fanCookie } });
 assert.strictEqual(r.status, 403, JSON.stringify(r.json));
@@ -98,6 +107,15 @@ assert.strictEqual(r.json.dealClicks.topDestinations[0].iata, dest.iata);
 assert.strictEqual(r.json.dealClicks.topDestinations[0].count, 2);
 assert.ok(r.json.recentSignups.some(a => a.email === 'fan@example.com' && a.marketingOptIn === true));
 assert.ok(r.json.recentClicks.some(c => c.email === 'fan@example.com' && c.iata === dest.iata));
+
+// 9. Site visits: exactly the 3 GET / requests should be counted (the
+// static-asset request should not have added a 4th), all landing on
+// today's date since the test runs in a few milliseconds.
+const today = new Date().toISOString().slice(0, 10);
+assert.strictEqual(r.json.visits.today, 3, 'expected exactly 3 visits today: ' + JSON.stringify(r.json.visits));
+assert.strictEqual(r.json.visits.total, 3, JSON.stringify(r.json.visits));
+assert.strictEqual(r.json.visits.last7Days, 3, JSON.stringify(r.json.visits));
+assert.ok(r.json.visits.dailyVisits.some(v => v.date === today && v.count === 3), 'dailyVisits should include today with count 3: ' + JSON.stringify(r.json.visits.dailyVisits));
 
 console.log('ALL ADMIN E2E TESTS PASSED');
 server.close();

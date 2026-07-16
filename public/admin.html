@@ -67,12 +67,29 @@
     </div>
 
     <div class="cards">
+      <div class="card"><div class="n" id="cVisitsToday">–</div><div class="l">Visits today</div></div>
+      <div class="card"><div class="n" id="cVisits7">–</div><div class="l">Visits in last 7 days</div></div>
+      <div class="card"><div class="n" id="cVisits30">–</div><div class="l">Visits in last 30 days</div></div>
       <div class="card"><div class="n" id="cAccountsTotal">–</div><div class="l">Total sign-ups</div></div>
-      <div class="card"><div class="n" id="cAccounts7">–</div><div class="l">New in last 7 days</div></div>
-      <div class="card"><div class="n" id="cAccounts30">–</div><div class="l">New in last 30 days</div></div>
+      <div class="card"><div class="n" id="cAccounts7">–</div><div class="l">New sign-ups in last 7 days</div></div>
+      <div class="card"><div class="n" id="cAccounts30">–</div><div class="l">New sign-ups in last 30 days</div></div>
       <div class="card"><div class="n" id="cMarketingOptIn">–</div><div class="l">Opted in to marketing</div></div>
       <div class="card"><div class="n" id="cClicksTotal">–</div><div class="l">Total deal clicks</div></div>
       <div class="card"><div class="n" id="cClicks7">–</div><div class="l">Clicks in last 7 days</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Site visits, last 30 days</h2>
+      <div class="muted" style="font-size:12.5px;margin-bottom:10px;">
+        A plain daily count, no cookies or per-visitor tracking — consistent with the Privacy Policy's "no analytics trackers" promise. Days with zero visits aren't shown below.
+      </div>
+      <div class="table-wrap">
+        <table id="visitsTable">
+          <thead><tr><th>Date</th><th>Visits</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="visitsEmpty" style="display:none;">No visits recorded yet.</div>
     </div>
 
     <div class="panel">
@@ -165,12 +182,19 @@ async function loadStats(){
   document.getElementById('stateMsg').style.display = 'none';
   document.getElementById('lastUpdated').textContent = 'Updated ' + fmtDateTime(new Date().toISOString());
 
+  document.getElementById('cVisitsToday').textContent = data.visits.today;
+  document.getElementById('cVisits7').textContent = data.visits.last7Days;
+  document.getElementById('cVisits30').textContent = data.visits.last30Days;
   document.getElementById('cAccountsTotal').textContent = data.accounts.total;
   document.getElementById('cAccounts7').textContent = data.accounts.last7Days;
   document.getElementById('cAccounts30').textContent = data.accounts.last30Days;
   document.getElementById('cMarketingOptIn').textContent = data.accounts.marketingOptIn;
   document.getElementById('cClicksTotal').textContent = data.dealClicks.total;
   document.getElementById('cClicks7').textContent = data.dealClicks.last7Days;
+
+  renderTable('visitsTable', 'visitsEmpty', data.visits.dailyVisits, v =>
+    `<tr><td>${v.date}</td><td><span class="pill">${v.count}</span></td></tr>`
+  );
 
   renderTable('topDestTable', 'topDestEmpty', data.dealClicks.topDestinations, d =>
     `<tr><td>${d.name}</td><td class="muted">${d.iata}</td><td><span class="pill">${d.count}</span></td></tr>`

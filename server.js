@@ -15,7 +15,7 @@ import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
   setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
-  setAccountProfile, listAccounts, recordDealClick, listDealClicks,
+  setAccountProfile, listAccounts, recordDealClick, listDealClicks, recordVisit, getVisitsByDay,
   getCalendarTokenForUser, setCalendarToken, getUserIdForCalendarToken, _dataFilePath
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
@@ -1037,6 +1037,24 @@ async function handleAdminStats(req, res) {
     .sort((a, b) => new Date(b.at) - new Date(a.at))
     .slice(0, 25);
 
+  // Site visits — a plain per-day count (see lib/store.js recordVisit for
+  // why). Summed over exact calendar-day windows rather than just slicing
+  // the last N keys out of visitsByDay, since a day with zero visits never
+  // gets a key at all — slicing would silently reach further back in time
+  // on any low-traffic stretch instead of correctly counting that day as 0.
+  const visitsByDay = getVisitsByDay();
+  const days = Object.keys(visitsByDay).sort(); // oldest -> newest, for the total below
+  function sumLastNDays(n) {
+    let sum = 0;
+    const cursor = new Date();
+    for (let i = 0; i < n; i++) {
+      sum += visitsByDay[cursor.toISOString().slice(0, 10)] || 0;
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+    }
+    return sum;
+  }
+  const dailyVisits = days.slice(-30).map(date => ({ date, count: visitsByDay[date] })).reverse();
+
   sendJson(res, 200, {
     accounts: {
       total: accounts.length,
@@ -1049,6 +1067,13 @@ async function handleAdminStats(req, res) {
       last7Days: clicks.filter(c => withinDays(c.at, 7)).length,
       last30Days: clicks.filter(c => withinDays(c.at, 30)).length,
       topDestinations
+    },
+    visits: {
+      total: days.reduce((sum, d) => sum + visitsByDay[d], 0),
+      today: visitsByDay[new Date().toISOString().slice(0, 10)] || 0,
+      last7Days: sumLastNDays(7),
+      last30Days: sumLastNDays(30),
+      dailyVisits
     },
     recentSignups,
     recentClicks
@@ -1216,6 +1241,15 @@ const server = http.createServer(async (req, res) => {
     if (calendarMatch && req.method === 'GET') return await handleCalendarFeed(req, res, calendarMatch[1]);
 
     if (pathname.startsWith('/avatars/') && req.method === 'GET') return serveAvatar(req, res, pathname);
+
+    // Site visit counter — only the actual app shell load, not every
+    // asset/API call under it, so this tracks "someone loaded the page"
+    // roughly once per visit (or per hard refresh) rather than inflating
+    // on every JS/CSS/image request. See lib/store.js recordVisit for why
+    // this is a bare per-day count and nothing more identifying.
+    if (pathname === '/' && req.method === 'GET') {
+      try { recordVisit(); } catch (e) { console.error('[visits] recordVisit threw:', e.message); }
+    }
 
     // static frontend
     if (req.method === 'GET') return serveStatic(req, res, pathname);

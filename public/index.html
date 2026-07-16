@@ -2126,7 +2126,7 @@ setupCombo(
 );
 
 // ---------- destination photos (a real, unique photo of the actual place for
-// every one of the 22 fixed destinations in lib/travelpayouts.js) ----------
+// every one of the 38 fixed destinations in lib/travelpayouts.js) ----------
 const DEST_PHOTO_BY_IATA = {
   DPS: 'https://images.unsplash.com/photo-1539367628448-4bc5c9d171c8?auto=format&fit=crop&w=800&q=65', // Bali
   HKT: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?auto=format&fit=crop&w=800&q=65', // Phuket
@@ -2150,6 +2150,22 @@ const DEST_PHOTO_BY_IATA = {
   ADL: 'https://images.unsplash.com/photo-1702252212983-db7e428cc3cf?auto=format&fit=crop&w=800&q=65', // Adelaide
   BME: 'https://images.unsplash.com/photo-1592123182471-fdeb2632474f?auto=format&fit=crop&w=800&q=65', // Broome
   HKG: 'https://images.unsplash.com/photo-1620015092538-e33c665fc181?auto=format&fit=crop&w=800&q=65', // Hong Kong
+  CBR: 'https://images.unsplash.com/photo-1591919123424-f149ae69c7fb?auto=format&fit=crop&w=800&q=65', // Canberra
+  NTL: 'https://images.unsplash.com/photo-1729581203722-e728a5ccf5d5?auto=format&fit=crop&w=800&q=65', // Newcastle
+  HBA: 'https://images.unsplash.com/photo-1663121195811-1f7234e6f8ba?auto=format&fit=crop&w=800&q=65', // Hobart
+  BNE: 'https://images.unsplash.com/photo-1548661625-a30d197ce439?auto=format&fit=crop&w=800&q=65', // Brisbane
+  PER: 'https://images.unsplash.com/photo-1559331709-adc470c83d72?auto=format&fit=crop&w=800&q=65', // Perth
+  DRW: 'https://images.unsplash.com/photo-1628506938916-209a24db0e99?auto=format&fit=crop&w=800&q=65', // Darwin
+  ASP: 'https://images.unsplash.com/photo-1526454762460-4176c93137a7?auto=format&fit=crop&w=800&q=65', // Alice Springs / Uluru
+  LST: 'https://images.unsplash.com/photo-1675665121651-55b2cec1bcd5?auto=format&fit=crop&w=800&q=65', // Launceston
+  MCY: 'https://images.unsplash.com/photo-1645416951435-e51f4a903402?auto=format&fit=crop&w=800&q=65', // Sunshine Coast
+  PPP: 'https://images.unsplash.com/photo-1603105059193-313a1037c42a?auto=format&fit=crop&w=800&q=65', // Whitsundays
+  KUL: 'https://images.unsplash.com/photo-1506320775314-84c60bff00ff?auto=format&fit=crop&w=800&q=65', // Kuala Lumpur
+  MNL: 'https://images.unsplash.com/photo-1601000234047-d9308ea1ed51?auto=format&fit=crop&w=800&q=65', // Manila
+  ICN: 'https://images.unsplash.com/photo-1637073759447-5e5effbd9cc0?auto=format&fit=crop&w=800&q=65', // Seoul
+  DXB: 'https://images.unsplash.com/photo-1667753979736-5893291ac7f6?auto=format&fit=crop&w=800&q=65', // Dubai
+  LON: 'https://images.unsplash.com/photo-1486299267070-83823f5448dd?auto=format&fit=crop&w=800&q=65', // London
+  CHC: 'https://images.unsplash.com/photo-1571478288039-27318549a79c?auto=format&fit=crop&w=800&q=65', // Christchurch
 };
 function destPhotoUrl(iata){
   return DEST_PHOTO_BY_IATA[iata] || null;

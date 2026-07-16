@@ -67,6 +67,20 @@
     address and a securely hashed password (we never store or see your
     password in plain text), or, if you sign in with Google, the basic
     profile fields Google shares at sign-in (name, email, profile photo).</li>
+    <li><b>Profile extras</b>, entirely optional: a display name and a
+    profile photo, if you choose to add them, stored on our server and
+    served back only to you.</li>
+    <li><b>Personalisation signals</b>: which trip interests you've
+    selected (e.g. beach, food, adventure) and which destinations you've
+    clicked through to book, used only to lean future suggestions toward
+    what you actually like, never to charge you a higher price.</li>
+    <li><b>Feedback you submit</b>: the reaction, topic tags, and any
+    optional free-text comment you choose to leave through the in-app
+    feedback widget, plus your email address if you're logged in when you
+    send it.</li>
+    <li><b>Marketing preference</b>: whether you've opted in to occasional
+    break-reminder emails, and which reminders you've already been sent (so
+    we don't send the same one twice).</li>
     <li><b>Payment details</b>, only if a paid feature is used: card
     details are entered directly into Stripe's own hosted checkout page and
     processed by Stripe; we never receive or store your full card number.</li>
@@ -85,8 +99,11 @@
 
   <h2>3. Why we collect, use and disclose it</h2>
   <p>Solely to provide and improve the Service: projecting your upcoming
-  breaks, looking up real flight prices and nearby events for those dates,
-  identifying your account so your setup is saved across devices, and
+  breaks, looking up real flight prices and nearby events and activities
+  for those dates, identifying your account so your setup is saved across
+  devices, personalising which options we show based on your stated
+  interests and past clicks, sending an optional break-reminder email if
+  you've opted in, understanding feedback you choose to submit, and
   processing any payment you choose to make. We do not sell your personal
   information, and we do not use it for advertising or share it with data
   brokers.</p>
@@ -103,9 +120,16 @@
   about that count can be tied to you individually: no cookies, no IP
   logging, no device or browser identifiers, and no way to tell separate
   visits on the same day apart from each other. Once you click through to
-  book a flight or event ticket, that
-  third-party site (Aviasales/Travelpayouts, Ticketmaster) may set its own
-  cookies under its own privacy policy, which is outside our control.</p>
+  book a flight, activity, or event ticket, that
+  third-party site (Aviasales/Travelpayouts, Viator, Ticketmaster) may set
+  its own cookies under its own privacy policy, which is outside our
+  control.</p>
+  <p>A couple of features work via a unique, hard-to-guess link rather than
+  a login: your calendar subscribe link, and the unsubscribe link in any
+  break-reminder email. Treat these like a password — anyone with the link
+  can use that specific feature (see your upcoming breaks, or unsubscribe
+  you from reminder emails) — and let us know if you think either has
+  leaked so we can issue you a fresh one.</p>
 
   <h2>5. Who we disclose information to, and overseas recipients</h2>
   <p>We share only what's needed to make a specific feature work, with
@@ -115,21 +139,25 @@
   <table>
     <tr><th>Provider</th><th>What for</th><th>Roughly where</th></tr>
     <tr><td>Travelpayouts / Aviasales</td><td>Real flight price lookups and booking links</td><td>Cyprus / EU</td></tr>
+    <tr><td>Viator (TripAdvisor)</td><td>Real, bookable local activities and booking links near your hometown, shown when there's nothing better to offer for a break</td><td>United States</td></tr>
     <tr><td>Ticketmaster</td><td>Real event listings and booking links near your hometown, via their public Discovery API</td><td>United States</td></tr>
-    <tr><td>OpenStreetMap (Nominatim)</td><td>Converting your hometown into an approximate latitude/longitude, so we can search for nearby events</td><td>Germany / EU (community-run)</td></tr>
+    <tr><td>OpenStreetMap (Nominatim)</td><td>Converting your hometown into an approximate latitude/longitude, so we can search for nearby events and activities</td><td>Germany / EU (community-run)</td></tr>
+    <tr><td>OpenStreetMap (Overpass API)</td><td>Finding free public spots (beaches, parks, lookouts) near your hometown when there's nothing bookable available</td><td>Germany / EU (community-run)</td></tr>
+    <tr><td>Open-Meteo</td><td>Weather forecasts for your destination and travel dates — only a location and date are sent, no personal information</td><td>Germany / EU</td></tr>
+    <tr><td>exchangerate-api.com</td><td>Currency conversion rates for international destinations — only a currency code is sent, no personal information</td><td>United States</td></tr>
     <tr><td>Stripe</td><td>Payment processing, if you use a paid feature</td><td>United States</td></tr>
     <tr><td>Google</td><td>Google Sign-In, if you choose to use it</td><td>United States</td></tr>
-    <tr><td>Resend</td><td>Sending password-reset emails</td><td>United States</td></tr>
+    <tr><td>Resend</td><td>Sending password-reset emails, and break-reminder emails if you've opted in</td><td>United States</td></tr>
   </table>
   <p>Each of these is a well-established provider with its own privacy and
   security commitments, and we only send them the minimum information each
   needs to do its job (e.g. Aviasales gets your home airport and travel
-  dates, Ticketmaster gets an approximate location and date range, not your
-  email or password in either case). We haven't audited each provider's
-  internal infrastructure in detail, but we choose providers with credible,
-  published privacy practices. Once you click a booking link and leave
-  Next Break, you're dealing directly with that provider under its own
-  privacy policy.</p>
+  dates, Ticketmaster and Viator get an approximate location and date
+  range, not your email or password in either case). We haven't audited
+  each provider's internal infrastructure in detail, but we choose
+  providers with credible, published privacy practices. Once you click a
+  booking link and leave Next Break, you're dealing directly with that
+  provider under its own privacy policy.</p>
 
   <h2>6. Data security</h2>
   <p>We use industry-standard practices: passwords are hashed (never
@@ -141,10 +169,13 @@
 
   <h2>7. How long we keep it</h2>
   <p>We keep your account and roster information for as long as your
-  account is active, so the Service keeps working the way you'd expect. If
-  you ask us to delete your account, we'll delete the personal information
-  associated with it, other than anything we're legally required to retain
-  (for example, payment records for tax purposes).</p>
+  account is active, so the Service keeps working the way you'd expect.
+  Feedback you submit and your click history are kept in a capped internal
+  log, used only in aggregate to understand how the Service is used, not
+  for anything else. If you ask us to delete your account, we'll delete
+  the personal information associated with it, other than anything we're
+  legally required to retain (for example, payment records for tax
+  purposes).</p>
 
   <h2>8. Access, correction and complaints</h2>
   <p>You can ask us for a copy of the personal information we hold about
@@ -157,9 +188,11 @@
   (OAIC) at <a href="https://www.oaic.gov.au" target="_blank" rel="noopener">oaic.gov.au</a>.</p>
 
   <h2>9. Automated decision-making</h2>
-  <p>The Service surfaces flight and event suggestions using
-  rule-based logic (matching real cached fares and nearby events to your
-  break dates and route). It doesn't use your personal information to make any automated
+  <p>The Service surfaces flight, event, and activity suggestions using
+  rule-based logic (matching real cached fares, nearby events and
+  activities to your break dates and route, with a light personalisation
+  nudge toward your stated interests and past clicks when prices are
+  close). It doesn't use your personal information to make any automated
   decision that significantly affects your legal rights or similar
   interests (for example, we don't do automated pricing decisions about
   you, credit checks, or eligibility assessments). If that ever changes,

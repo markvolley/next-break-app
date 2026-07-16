@@ -458,10 +458,10 @@
   <div class="hero-overlay">
     <div class="hero-text">
       <h1 class="hero-title">Make every break count<span style="color:var(--accent2);">.</span></h1>
-      <p class="hero-sub">We'll find real flight deals and real events happening near you, matched to your roster's next break, all about maximising your time off.</p>
+      <p class="hero-sub">We'll find real flight options and real events happening near you, matched to your roster's next break, all about maximising your time off.</p>
     </div>
     <div class="hero-cta-block">
-      <button class="btn cta-mango" onclick="scrollToSetup()">See my deals</button>
+      <button class="btn cta-mango" onclick="scrollToSetup()">See my options</button>
     </div>
   </div>
 </div>
@@ -496,7 +496,7 @@
     <div id="authMarketingField" style="display:none;margin-top:10px;">
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;color:var(--muted);font-size:13px;margin:0;">
         <input type="checkbox" id="authMarketingOptIn" style="margin-top:3px;width:auto;">
-        <span>Email me about new deals and Next Break updates (optional)</span>
+        <span>Email me about new options and Next Break updates (optional)</span>
       </label>
     </div>
     <div class="auth-error" id="authError"></div>
@@ -523,7 +523,7 @@
   <div id="view-landing" style="display:none;">
     <div class="landing-features">
       <div class="feature"><span class="step-num">01</span><h3>Set your roster once</h3><p>From there, every upcoming break is mapped out for you.</p></div>
-      <div class="feature"><span class="step-num">02</span><h3>Get deals for <em>you</em></h3><p>Flights, events and things worth doing, filtered to your break.</p></div>
+      <div class="feature"><span class="step-num">02</span><h3>Get options for <em>you</em></h3><p>Flights, events and things worth doing, filtered to your break.</p></div>
       <div class="feature"><span class="step-num">03</span><h3>Book with confidence</h3><p>Knowing your break won't be wasted.</p></div>
     </div>
   </div>
@@ -571,7 +571,7 @@
             <input type="date" id="nextBreakStart" onclick="openDatePicker(this)" required>
           </div>
         </div>
-        <button class="btn cta-mango swing-submit" id="saveSetupBtn" onclick="saveSetup()">See deals</button>
+        <button class="btn cta-mango swing-submit" id="saveSetupBtn" onclick="saveSetup()">See options</button>
       </div>
 
       <div id="manualFields" style="display:none;margin-top:16px;">
@@ -579,7 +579,7 @@
         <button class="btn secondary small" onclick="addManualRow()">+ Add a break</button>
         <div class="hint">Add at least one break with both start and end dates filled in.</div>
         <div style="margin-top:20px;">
-          <button class="btn cta-mango btn-block-mobile" id="saveSetupBtnManual" onclick="saveSetup()">See deals</button>
+          <button class="btn cta-mango btn-block-mobile" id="saveSetupBtnManual" onclick="saveSetup()">See options</button>
         </div>
       </div>
     </div>
@@ -647,7 +647,7 @@
       <div style="margin-top:16px;">
         <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;color:var(--text);font-size:13px;margin:0;">
           <input type="checkbox" id="profileMarketingOptIn" style="margin-top:3px;width:auto;">
-          <span>Email me about new deals and Next Break updates</span>
+          <span>Email me about new options and Next Break updates</span>
         </label>
       </div>
 
@@ -659,7 +659,7 @@
 
     <div class="panel">
       <h2>Trip interests</h2>
-      <p class="interests-hint">Tell us what kind of trips you're into and we'll lean toward matching deals when the price is close. We'll never pick a pricier fare just because it fits; we only ever nudge among deals within a similar price.</p>
+      <p class="interests-hint">Tell us what kind of trips you're into and we'll lean toward matching options when the price is close. We'll never pick a pricier fare just because it fits; we only ever nudge among options within a similar price.</p>
       <div class="interest-chips" id="interestChips"></div>
       <div class="auth-error" id="interestsError"></div>
       <div style="margin-top:16px;">
@@ -672,11 +672,11 @@
   <div id="view-stats" style="display:none;">
     <div class="panel">
       <h2>My stats</h2>
-      <div class="hint" style="margin-top:0;">Your own account activity: built from your actual roster and the deals you've clicked into, not projections. Looking for site-wide numbers instead? That's the Admin dashboard.</div>
+      <div class="hint" style="margin-top:0;">Your own account activity: built from your actual roster and the options you've clicked into, not projections. Looking for site-wide numbers instead? That's the Admin dashboard.</div>
       <div class="stat-cards" style="margin-top:16px;">
         <div class="stat-card"><div class="n" id="statUpcoming">–</div><div class="l">Upcoming breaks</div></div>
         <div class="stat-card"><div class="n" id="statNextIn">–</div><div class="l">Days to next break</div></div>
-        <div class="stat-card"><div class="n" id="statClicksTotal">–</div><div class="l">Deals you've clicked into</div></div>
+        <div class="stat-card"><div class="n" id="statClicksTotal">–</div><div class="l">Options you've clicked into</div></div>
         <div class="stat-card"><div class="n" id="statUniqueDest">–</div><div class="l">Different destinations</div></div>
       </div>
       <div class="hint" id="statMemberSince" style="margin-top:14px;"></div>
@@ -690,7 +690,7 @@
     <div class="panel">
       <h2>Destinations you've clicked into</h2>
       <ul class="stat-list" id="statTopDest"></ul>
-      <div class="empty" id="statTopDestEmpty" style="display:none;">Click "Book this fare" on a deal and it'll show up here.</div>
+      <div class="empty" id="statTopDestEmpty" style="display:none;">Click into a flight option and it'll show up here.</div>
     </div>
   </div>
 
@@ -1401,7 +1401,7 @@ async function saveInterests(){
   setBtnBusy(btn, true, 'Saving…');
   try{
     await api('/api/settings', { method: 'PUT', body: JSON.stringify({ interests: [...selectedInterests] }) });
-    showBanner('success', 'Interests saved. We\'ll start factoring these into your deals.');
+    showBanner('success', 'Interests saved. We\'ll start factoring these into your options.');
   }catch(e){
     errEl.textContent = 'Could not save: ' + e.message;
   }finally{
@@ -1425,7 +1425,7 @@ function renderInterestsPromo(hasInterests){
   el.innerHTML = `
     <div class="content" style="min-width:100%;">
       <h3>What kind of trips are you into?</h3>
-      <p class="interests-hint" style="margin:0 0 4px;">Pick a few and we'll lean toward matching deals when the price is close.</p>
+      <p class="interests-hint" style="margin:0 0 4px;">Pick a few and we'll lean toward matching options when the price is close.</p>
       <div class="interest-chips" id="dashboardInterestChips"></div>
     </div>
     <div class="actions" style="width:100%;justify-content:flex-end;margin-top:12px;">
@@ -1495,7 +1495,7 @@ const FEEDBACK_REACTIONS = [
   { key: 'frustrated', emoji: '😞', label: 'Frustrated' }
 ];
 const FEEDBACK_TOPICS = [
-  { key: 'flights', label: 'Flight deals' },
+  { key: 'flights', label: 'Flight options' },
   { key: 'events', label: 'Events' },
   { key: 'setup', label: 'Setup / roster' },
   { key: 'pricing', label: 'Pricing' },
@@ -1936,9 +1936,9 @@ function renderBreaksList(){
     if(isOpen){
       const cached = dealsCache[b.key];
       if(!cached){
-        bodyHtml = '<div class="empty">Looking up deals…</div>';
+        bodyHtml = '<div class="empty">Looking up options…</div>';
       }else if(cached.error){
-        bodyHtml = '<div class="empty">Could not load deals: ' + cached.error + '</div>';
+        bodyHtml = '<div class="empty">Could not load options: ' + cached.error + '</div>';
       }else{
         bodyHtml = dealsMarkup(cached);
       }
@@ -2220,7 +2220,7 @@ function searchOnlyCardMarkup(d){
         <div class="deal-photo-bg">${photo ? `<img src="${photo}" alt="" loading="lazy">` : `<div class="deal-photo-fallback"><span>${d.iata}</span></div>`}</div>
         <div class="deal-tags-row">
           <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
-          <div class="search-only-tag">No deal found yet<span class="info-icon" tabindex="0">i<span class="info-tooltip">We couldn't find a cached fare that fits your exact break dates for this one. It's still a real, worthwhile destination, search live prices for these dates directly.</span></span></div>
+          <div class="search-only-tag">No fare found yet<span class="info-icon" tabindex="0">i<span class="info-tooltip">We couldn't find a cached fare that fits your exact break dates for this one. It's still a real, worthwhile destination, search live prices for these dates directly.</span></span></div>
         </div>
         <div class="deal-overlay-text">
           <div class="dest">${d.name}</div>
@@ -2280,7 +2280,7 @@ function dealsMarkup(result){
   const refreshed = fmtRefreshed(result.fetchedAt);
   const tags = [];
   if(refreshed) tags.push(`<div class="refreshed-tag">Updated ${refreshed}<span class="info-icon" tabindex="0">i<span class="info-tooltip">We refresh cached prices for each break once a day, rather than looking them up on every visit. That way you see consistent prices and we don't hammer the flight search API.</span></span></div>`);
-  if(result.personalized) tags.push(`<div class="refreshed-tag">Picked for you<span class="info-icon" tabindex="0">i<span class="info-tooltip">Based on the trip interests you've set (and what you've booked before), we'll lean toward a matching deal when it's priced close to the cheapest option. Never a pricier one just because it fits.</span></span></div>`);
+  if(result.personalized) tags.push(`<div class="refreshed-tag">Picked for you<span class="info-icon" tabindex="0">i<span class="info-tooltip">Based on the trip interests you've set (and what you've booked before), we'll lean toward a matching option when it's priced close to the cheapest one. Never a pricier one just because it fits.</span></span></div>`);
 
   // When nothing real was found at all, every card is a search-only
   // backfill one — the usual "prices are from recent searches" line

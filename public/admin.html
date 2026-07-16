@@ -37,6 +37,18 @@
   .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
   .card .n{font-size:28px;font-weight:800;letter-spacing:-.01em;}
   .card .l{color:var(--muted);font-size:12.5px;margin-top:4px;}
+  /* Week-over-week growth badge: green for up, red for down, grey for flat.
+     Shown on the 4 headline cards and again per trend chart below. */
+  .growth-badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:var(--radius-pill);margin-top:8px;}
+  .growth-badge.up{background:rgba(76,209,133,0.16);color:#4cd185;}
+  .growth-badge.down{background:rgba(255,107,91,0.16);color:var(--danger);}
+  .growth-badge.flat{background:rgba(244,238,227,0.12);color:var(--muted);}
+  .growth-badge:empty{display:none;}
+  .trend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;}
+  .trend-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+  .trend-card .head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
+  .trend-card .title{font-size:12.5px;color:var(--muted);font-weight:600;}
+  .trend-card svg{width:100%;height:56px;display:block;}
   table{width:100%;border-collapse:collapse;font-size:13.5px;}
   th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--border);}
   td{padding:9px 10px;border-bottom:1px solid var(--border);}
@@ -69,10 +81,35 @@
     <!-- The 4 headline numbers, deidentified: no email or per-visitor id
          attached to any of these, just plain aggregate counts. -->
     <div class="cards">
-      <div class="card"><div class="n" id="cVisits30">–</div><div class="l">Site visits, last 30 days</div></div>
-      <div class="card"><div class="n" id="cAccounts30">–</div><div class="l">Accounts created, last 30 days</div></div>
-      <div class="card"><div class="n" id="cClicks30">–</div><div class="l">Travel deal clicks, last 30 days</div></div>
-      <div class="card"><div class="n" id="cEventClicks30">–</div><div class="l">Event ticket clicks, last 30 days</div></div>
+      <div class="card"><div class="n" id="cVisits30">–</div><div class="l">Site visits, last 30 days</div><div class="growth-badge" id="gVisits" title="This week vs the previous week"></div></div>
+      <div class="card"><div class="n" id="cAccounts30">–</div><div class="l">Accounts created, last 30 days</div><div class="growth-badge" id="gAccounts" title="This week vs the previous week"></div></div>
+      <div class="card"><div class="n" id="cClicks30">–</div><div class="l">Travel deal clicks, last 30 days</div><div class="growth-badge" id="gDealClicks" title="This week vs the previous week"></div></div>
+      <div class="card"><div class="n" id="cEventClicks30">–</div><div class="l">Event ticket clicks, last 30 days</div><div class="growth-badge" id="gEventClicks" title="This week vs the previous week"></div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Trends, last 30 days</h2>
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px;">
+        Each line is one point per day. The badge compares the last 7 days to the 7 days before that.
+      </div>
+      <div class="trend-grid">
+        <div class="trend-card">
+          <div class="head"><span class="title">Site visits</span><div class="growth-badge" id="gVisitsTrend"></div></div>
+          <svg id="sparkVisits"></svg>
+        </div>
+        <div class="trend-card">
+          <div class="head"><span class="title">Accounts created</span><div class="growth-badge" id="gAccountsTrend"></div></div>
+          <svg id="sparkAccounts"></svg>
+        </div>
+        <div class="trend-card">
+          <div class="head"><span class="title">Travel deal clicks</span><div class="growth-badge" id="gDealClicksTrend"></div></div>
+          <svg id="sparkDealClicks"></svg>
+        </div>
+        <div class="trend-card">
+          <div class="head"><span class="title">Event ticket clicks</span><div class="growth-badge" id="gEventClicksTrend"></div></div>
+          <svg id="sparkEventClicks"></svg>
+        </div>
+      </div>
     </div>
 
     <div class="panel">
@@ -203,6 +240,44 @@ function renderTable(bodyId, emptyId, rows, rowFn){
   tbody.innerHTML = rows.map(rowFn).join('');
 }
 
+// Sets a growth badge's text/colour from a { last7, prev7, pct, direction }
+// object returned by the server (see computeGrowth in server.js). Applied
+// to both the small badge on each headline card and the larger one on each
+// trend chart, so it's written once and reused for both.
+function renderGrowthBadge(elId, g){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  if(!g){ el.textContent = ''; return; }
+  el.classList.remove('up', 'down', 'flat');
+  el.classList.add(g.direction);
+  if(g.direction === 'up') el.textContent = (g.pct == null ? '▲ New' : `▲ ${g.pct}%`);
+  else if(g.direction === 'down') el.textContent = `▼ ${Math.abs(g.pct)}%`;
+  else el.textContent = '→ Flat';
+  el.title = `Last 7 days: ${g.last7}. Previous 7 days: ${g.prev7}.`;
+}
+
+// Plain inline SVG line chart, no charting library — this app is zero
+// dependency on purpose (see README). `series` is a dense, oldest-to-newest
+// array of { date, count } with one entry per day (see denseDailySeries in
+// server.js), so every x position always has a value, even on days with 0
+// activity.
+function renderSparkline(svgId, series, color){
+  const svg = document.getElementById(svgId);
+  if(!svg || !series || !series.length) return;
+  const w = 300, h = 56, pad = 4;
+  const max = Math.max(1, ...series.map(p => p.count));
+  const stepX = series.length > 1 ? (w - pad * 2) / (series.length - 1) : 0;
+  const points = series.map((p, i) => [
+    pad + i * stepX,
+    h - pad - (p.count / max) * (h - pad * 2)
+  ]);
+  const line = points.map((pt, i) => (i === 0 ? 'M' : 'L') + pt[0].toFixed(1) + ',' + pt[1].toFixed(1)).join(' ');
+  const area = `${line} L${points[points.length - 1][0].toFixed(1)},${h - pad} L${points[0][0].toFixed(1)},${h - pad} Z`;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.innerHTML = `<path d="${area}" fill="${color}" opacity="0.14"></path><path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>`;
+}
+
 async function loadStats(){
   let res;
   try{
@@ -249,6 +324,20 @@ async function loadStats(){
   document.getElementById('cSignupRate').textContent = fmtRate(data.engagement.signupsPer100Visits);
   document.getElementById('cDealClickRate').textContent = fmtRate(data.engagement.dealClicksPer100Visits);
   document.getElementById('cEventClickRate').textContent = fmtRate(data.engagement.eventClicksPer100Visits);
+
+  renderGrowthBadge('gVisits', data.growth.visits);
+  renderGrowthBadge('gAccounts', data.growth.signups);
+  renderGrowthBadge('gDealClicks', data.growth.dealClicks);
+  renderGrowthBadge('gEventClicks', data.growth.eventClicks);
+  renderGrowthBadge('gVisitsTrend', data.growth.visits);
+  renderGrowthBadge('gAccountsTrend', data.growth.signups);
+  renderGrowthBadge('gDealClicksTrend', data.growth.dealClicks);
+  renderGrowthBadge('gEventClicksTrend', data.growth.eventClicks);
+
+  renderSparkline('sparkVisits', data.series.visits, '#F5B04C');
+  renderSparkline('sparkAccounts', data.series.signups, '#4cd185');
+  renderSparkline('sparkDealClicks', data.series.dealClicks, '#5ba8f5');
+  renderSparkline('sparkEventClicks', data.series.eventClicks, '#c792ea');
 
   renderTable('visitsTable', 'visitsEmpty', data.visits.dailyVisits, v =>
     `<tr><td>${v.date}</td><td><span class="pill">${v.count}</span></td></tr>`

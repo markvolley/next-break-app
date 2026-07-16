@@ -1036,6 +1036,71 @@ function requireAdminEmail(req, res) {
   return email;
 }
 
+// ---------- day-bucketing helpers for admin trend charts ----------
+// Turn a list of records with an ISO-timestamp field into a { 'YYYY-MM-DD':
+// count } map. Used to build both the dense 30-point series the line charts
+// draw and the week-over-week growth comparison below.
+function bucketByDay(items, dateField) {
+  const map = {};
+  for (const item of items) {
+    const iso = item[dateField];
+    if (!iso) continue;
+    const key = String(iso).slice(0, 10);
+    map[key] = (map[key] || 0) + 1;
+  }
+  return map;
+}
+
+// Sums a day-map over an exact calendar-day window, offsetStart..offsetEnd
+// days back from today (offsetStart inclusive, offsetEnd exclusive) — same
+// "walk backward by real day, missing day = 0" approach as sumLastNDays
+// below, generalised so it can express "the 7 days before last week" too.
+function sumDayRange(dayMap, offsetStart, offsetEnd) {
+  let sum = 0;
+  const cursor = new Date();
+  for (let i = offsetStart; i < offsetEnd; i++) {
+    const d = new Date(cursor);
+    d.setUTCDate(d.getUTCDate() - i);
+    sum += dayMap[d.toISOString().slice(0, 10)] || 0;
+  }
+  return sum;
+}
+
+// A continuous, oldest-to-newest run of exactly `days` points (zero-filled
+// for days with no activity) — what the line charts on the admin page plot.
+// Deliberately different from the sparse day-map above: a chart needs every
+// x position to exist, a table/total doesn't.
+function denseDailySeries(dayMap, days) {
+  const out = [];
+  const cursor = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(cursor);
+    d.setUTCDate(d.getUTCDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    out.push({ date: key, count: dayMap[key] || 0 });
+  }
+  return out;
+}
+
+// This-week-vs-last-week growth, with a direction the frontend can colour
+// directly (green up / red down / grey flat) without redoing the math.
+// prev7 === 0 with last7 > 0 is "new" activity where there was none the
+// week before — there's no meaningful percentage for that, so pct stays
+// null but direction is still 'up'.
+function computeGrowth(dayMap) {
+  const last7 = sumDayRange(dayMap, 0, 7);
+  const prev7 = sumDayRange(dayMap, 7, 14);
+  let pct = null;
+  let direction = 'flat';
+  if (prev7 > 0) {
+    pct = Math.round(((last7 - prev7) / prev7) * 1000) / 10;
+    direction = pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat');
+  } else if (last7 > 0) {
+    direction = 'up';
+  }
+  return { last7, prev7, pct, direction };
+}
+
 async function handleAdminStats(req, res) {
   const email = requireAdminEmail(req, res);
   if (!email) return;
@@ -1108,6 +1173,28 @@ async function handleAdminStats(req, res) {
   // read these as engagement intensity, not a literal "% of people who...".
   const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
 
+  // Day-maps for the other 3 metrics, same shape as visitsByDay above, so
+  // the trend charts and growth badges can treat all 4 metrics uniformly.
+  const signupsByDay = bucketByDay(accounts, 'createdAt');
+  const dealClicksByDay = bucketByDay(clicks, 'at');
+  const eventClicksByDay = bucketByDay(eventClicks, 'at');
+
+  const series = {
+    visits: denseDailySeries(visitsByDay, 30),
+    signups: denseDailySeries(signupsByDay, 30),
+    dealClicks: denseDailySeries(dealClicksByDay, 30),
+    eventClicks: denseDailySeries(eventClicksByDay, 30)
+  };
+
+  // Week-over-week growth (last 7 days vs the 7 days before that), with a
+  // ready-to-colour direction per metric.
+  const growth = {
+    visits: computeGrowth(visitsByDay),
+    signups: computeGrowth(signupsByDay),
+    dealClicks: computeGrowth(dealClicksByDay),
+    eventClicks: computeGrowth(eventClicksByDay)
+  };
+
   sendJson(res, 200, {
     accounts: {
       total: accounts.length,
@@ -1142,6 +1229,8 @@ async function handleAdminStats(req, res) {
       dealClicksPer100Visits: pct(dealClicks30, visits30),
       eventClicksPer100Visits: pct(eventClicks30, visits30)
     },
+    series,
+    growth,
     recentSignups,
     recentClicks,
     recentEventClicks

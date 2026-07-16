@@ -116,6 +116,7 @@ r = await req('/api/admin/stats');
 assert.strictEqual(r.status, 401, JSON.stringify(r.json));
 
 // 8. The admin account -> 200, with correct aggregate numbers.
+const today = new Date().toISOString().slice(0, 10);
 r = await req('/api/admin/stats', { headers: { Cookie: adminCookie } });
 assert.strictEqual(r.status, 200, JSON.stringify(r.json));
 assert.strictEqual(r.json.accounts.total, 3, 'expected 3 accounts total: ' + JSON.stringify(r.json.accounts));
@@ -142,10 +143,37 @@ assert.strictEqual(typeof r.json.engagement.signupsPer100Visits, 'number', JSON.
 assert.strictEqual(typeof r.json.engagement.dealClicksPer100Visits, 'number', JSON.stringify(r.json.engagement));
 assert.strictEqual(typeof r.json.engagement.eventClicksPer100Visits, 'number', JSON.stringify(r.json.engagement));
 
+// 8d. Daily series for the trend charts: exactly 30 points each, oldest to
+// newest, ending on today, with today's count matching the same numbers
+// already asserted above (3 visits, 3 accounts, 3 deal clicks, 3 event
+// clicks all happened today, in this single test run).
+for (const key of ['visits', 'signups', 'dealClicks', 'eventClicks']) {
+  const series = r.json.series[key];
+  assert.strictEqual(series.length, 30, `${key} series should have 30 points: ` + JSON.stringify(series));
+  assert.strictEqual(series[29].date, today, `${key} series should end on today: ` + JSON.stringify(series[29]));
+}
+assert.strictEqual(r.json.series.visits[29].count, 3, JSON.stringify(r.json.series.visits[29]));
+assert.strictEqual(r.json.series.signups[29].count, 3, JSON.stringify(r.json.series.signups[29]));
+assert.strictEqual(r.json.series.dealClicks[29].count, 3, JSON.stringify(r.json.series.dealClicks[29]));
+assert.strictEqual(r.json.series.eventClicks[29].count, 3, JSON.stringify(r.json.series.eventClicks[29]));
+
+// 8e. Growth: everything happened today (all in the "last 7 days" bucket,
+// nothing in the "previous 7 days" bucket), so every metric should read as
+// "up" with no percentage (can't divide by a zero prior week).
+for (const key of ['visits', 'signups', 'dealClicks', 'eventClicks']) {
+  const g = r.json.growth[key];
+  assert.strictEqual(g.direction, 'up', `${key} growth should be 'up': ` + JSON.stringify(g));
+  assert.strictEqual(g.prev7, 0, `${key} should have 0 in the previous week: ` + JSON.stringify(g));
+  assert.strictEqual(g.pct, null, `${key} pct should be null with a zero prior week: ` + JSON.stringify(g));
+}
+assert.strictEqual(r.json.growth.visits.last7, 3, JSON.stringify(r.json.growth.visits));
+assert.strictEqual(r.json.growth.signups.last7, 3, JSON.stringify(r.json.growth.signups));
+assert.strictEqual(r.json.growth.dealClicks.last7, 3, JSON.stringify(r.json.growth.dealClicks));
+assert.strictEqual(r.json.growth.eventClicks.last7, 3, JSON.stringify(r.json.growth.eventClicks));
+
 // 9. Site visits: exactly the 3 GET / requests should be counted (the
 // static-asset request should not have added a 4th), all landing on
 // today's date since the test runs in a few milliseconds.
-const today = new Date().toISOString().slice(0, 10);
 assert.strictEqual(r.json.visits.today, 3, 'expected exactly 3 visits today: ' + JSON.stringify(r.json.visits));
 assert.strictEqual(r.json.visits.total, 3, JSON.stringify(r.json.visits));
 assert.strictEqual(r.json.visits.last7Days, 3, JSON.stringify(r.json.visits));

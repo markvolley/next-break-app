@@ -300,14 +300,11 @@
      directly under <header>) and the header itself goes transparent and
      floats on top of it (see header.landing-mode below). Sizing/copy here
      is matched exactly to the approved mockup. */
-  /* Capped a bit shorter than before (was min(88vh,760px)) — on common
-     laptop viewport heights that cap landed right at the very top edge of
-     .landing-features below it, so only the bare "01/02/03" step numbers
-     peeked through with their headings cut off, reading as a layout bug
-     rather than an intentional "there's more, scroll" hint. This leaves
-     enough clearance that the numbers either come with their heading or
-     don't show at all. */
-  .hero{position:relative;overflow:hidden;height:min(80vh,700px);background:var(--bg-soft);}
+  /* Full viewport height so .landing-features sits entirely below the fold
+     on load, no partial peek-through of the step numbers. Using 100dvh
+     (falls back to 100vh) so mobile browser chrome doesn't leave a sliver
+     of the next section visible either. */
+  .hero{position:relative;overflow:hidden;height:100vh;height:100dvh;background:var(--bg-soft);}
   .hero-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
   .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, rgba(16,24,32,0.6) 0%, rgba(16,24,32,0.15) 40%, rgba(16,24,32,0.94) 100%);pointer-events:none;}
   .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:0 clamp(20px,5vw,56px) clamp(28px,5vw,52px);z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:32px;flex-wrap:wrap;}
@@ -323,7 +320,7 @@
   .landing-features .feature h3{margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em;font-family:var(--font-head);}
   .landing-features .feature p{margin:0;color:rgba(244,238,227,0.7);font-size:15px;line-height:1.55;}
   @media (max-width: 640px){
-    .hero{height:min(86vh,580px);}
+    .hero{height:100vh;height:100dvh;}
     .hero-overlay{flex-direction:column;align-items:flex-start;}
     .hero-cta-block .btn{width:100%;text-align:center;}
     .landing-features{grid-template-columns:1fr;margin:0 -20px;}
@@ -397,10 +394,10 @@
      "X days away" pill. Still opens/closes exactly like any other row. */
   /* Named "next-up" rather than "hero" deliberately — "hero" is already
      used by the full-bleed landing-page photo banner further down
-     (.hero{height:min(88vh,760px)}, plus its own ::after gradient), and
-     reusing that class name here made this element inherit THAT sizing,
-     producing a huge near-viewport-height empty box. Distinct class name
-     avoids the collision entirely. */
+     (.hero{height:100dvh}, plus its own ::after gradient), and reusing
+     that class name here made this element inherit THAT sizing, producing
+     a huge near-viewport-height empty box. Distinct class name avoids the
+     collision entirely. */
   .accordion-item.next-up{background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
   .accordion-item.next-up.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
   .accordion-item.next-up .break-row{padding:20px 22px;}

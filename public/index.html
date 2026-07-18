@@ -125,6 +125,12 @@
      weather to show. */
   .deal-photo .search-only-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);background:rgba(16,24,32,0.6);color:rgba(244,238,227,0.75);border:1px dashed rgba(244,238,227,0.35);}
   .deal-photo .search-only-tag .info-icon{width:12px;height:12px;font-size:9px;margin-left:5px;background:rgba(244,238,227,0.3);}
+  /* Mirrors search-only-tag's position (top of the photo) so a real fare's
+     price is visible at a glance without scrolling to the bottom of the
+     card — previously only "No fare found yet" had anything up here, so a
+     partially-scrolled view of a row with a mix of real and backfill cards
+     could read as if nothing had a real price at all, even when one did. */
+  .deal-photo .real-fare-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:var(--radius-pill);background:rgba(16,24,32,0.78);color:var(--accent2);border:1px solid rgba(245,176,76,0.55);}
   /* Destination name now gets its own full-width row (was squeezed into a
      narrow column next to the price before, which forced long names like
      "Christchurch, NZ" to break mid-word to fit). Type + price share a
@@ -608,7 +614,11 @@
   <div id="view-dashboard" style="display:none;">
     <div class="top-bar">
       <div class="summary">Planning breaks for <b id="sumHometown">—</b> · <b id="sumRoster">—</b></div>
-      <button class="btn secondary small" onclick="showView('setup')">Get Started</button>
+      <!-- Dashboard only ever shows once a setup already exists, so "Get
+           Started" here was leftover copy from before Edit setup existed as
+           its own affordance — it read like a first-time CTA when it was
+           actually the only way back into editing hometown/roster. -->
+      <button class="btn secondary small" onclick="showView('setup')">✏️ Edit setup</button>
     </div>
 
     <div id="accountPromo" class="account-promo" style="display:none;"></div>
@@ -2303,6 +2313,7 @@ function dealsMarkup(result){
         <div class="deal-photo-bg">${photo ? `<img src="${photo}" alt="" loading="lazy">` : `<div class="deal-photo-fallback"><span>${d.iata}</span></div>`}</div>
         <div class="deal-tags-row">
           <div class="region-tag ${d.domestic ? 'domestic' : 'intl'}">${d.domestic ? 'Domestic' : 'International'}</div>
+          <div class="real-fare-tag">${sym}${Math.round(d.price)} fare</div>
           ${d.isQuickTrip ? `<div class="quick-trip-tag">Quick trip<span class="info-icon" tabindex="0">i<span class="info-tooltip">This fits your break, but it's a shorter trip than we'd usually call a full break away: ${d.nights} night${d.nights===1?'':'s'} once you count the flying time. Still a real, bookable fare if it works for you.</span></span></div>` : ''}
         </div>
         <div class="deal-overlay-text">

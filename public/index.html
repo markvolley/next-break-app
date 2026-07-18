@@ -1297,6 +1297,7 @@ async function saveSetup(){
   setBtnBusy(btn, true, 'Saving…');
   try{
     await api('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
+    clearBreakCaches();
     await showView('dashboard');
   }catch(e){
     showBanner('error', 'Could not save: ' + e.message);
@@ -1404,6 +1405,22 @@ const eventsLoading = {}; // breakKey -> true while a fetch is in flight
 // load-on-open, cache-per-break pattern as deals/events.
 const activitiesCache = {};
 const activitiesLoading = {};
+
+// Break keys are just date ranges (e.g. "2026-08-06_2026-08-12"), so
+// editing hometown or home airport in Setup doesn't change any of them —
+// without this, the deals/events/activities already cached client-side
+// from before the edit would keep showing (e.g. Perth events) even after
+// saving a new hometown of Sydney, since renderBreaksList only fetches a
+// break's data when nothing is cached for its key yet. Called right after
+// a setup save succeeds, before the dashboard re-renders.
+function clearBreakCaches(){
+  for(const k in dealsCache) delete dealsCache[k];
+  for(const k in dealsLoading) delete dealsLoading[k];
+  for(const k in eventsCache) delete eventsCache[k];
+  for(const k in eventsLoading) delete eventsLoading[k];
+  for(const k in activitiesCache) delete activitiesCache[k];
+  for(const k in activitiesLoading) delete activitiesLoading[k];
+}
 
 // ---------- trip interests (personalisation, logged-in users only) ----------
 // Keys here must match lib/travelpayouts.js's INTEREST_TAGS exactly — the

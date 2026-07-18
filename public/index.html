@@ -93,7 +93,13 @@
   .break-pill .dates{font-weight:800;font-size:15px;letter-spacing:-.01em;white-space:nowrap;}
   .break-pill .pill-meta{color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;}
   .break-pill .pill-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:3px;}
-  .break-pill.next-up{background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
+  .break-pill .pill-countdown{font-size:13px;font-weight:800;color:var(--accent2);margin-top:6px;white-space:nowrap;}
+  /* The soonest break's pill gets a bit more visual weight than the rest
+     (bigger padding/date size) plus its own countdown line, since it's the
+     one thing this whole app is built around — same idea as the old
+     accordion's "hero" row, just applied to a pill instead. */
+  .break-pill.next-up{padding:14px 20px;background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
+  .break-pill.next-up .dates{font-size:18px;}
   .break-pill.next-up.active{border-color:var(--accent2);background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.12));}
 
   .break-panel{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;}
@@ -1957,12 +1963,15 @@ function renderBreaksList(){
   const pillsHtml = breaks.map((b, i) => {
     const isHero = i === 0;
     const isActive = b.key === selected.key;
+    const countdownHtml = isHero
+      ? (() => { const c = nextBreakCountdown(b); return `<div class="pill-countdown">${c.big} ${c.label}</div>`; })()
+      : daysBadge(b);
     return `
       <button class="break-pill${isActive ? ' active' : ''}${isHero ? ' next-up' : ''}" onclick="selectBreak('${b.key}')">
         ${isHero ? '<div class="pill-label">Next</div>' : ''}
         <div class="dates">${fmtDateRange(b)}</div>
         <div class="pill-meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
-        ${isHero ? '' : daysBadge(b)}
+        ${countdownHtml}
       </button>
     `;
   }).join('');

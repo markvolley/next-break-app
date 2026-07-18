@@ -79,20 +79,36 @@
   .manual-row > div{flex:1;min-width:130px;}
   .hint{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.5;}
   .empty{color:var(--muted);font-size:14px;padding:20px 0;text-align:center;}
-  .accordion-item{border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden;background:var(--panel2);}
-  .accordion-item.open{border-color:var(--accent);}
-  .break-row{padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer;transition:background .15s;}
-  .break-row:hover{background:rgba(245,176,76,0.08);}
-  .accordion-item.open .break-row{background:rgba(245,176,76,0.14);}
-  .break-row .dates{font-weight:800;font-size:17px;letter-spacing:-.01em;}
-  .break-row .meta{color:var(--muted);font-size:13px;margin-top:2px;}
-  .break-row .right{display:flex;align-items:center;gap:10px;}
-  .break-row .chevron{color:var(--muted);font-size:16px;display:inline-block;transition:transform .15s;}
-  .accordion-item.open .break-row .chevron{color:var(--accent);transform:rotate(90deg);}
+  /* Break switcher: a horizontal row of compact pills (one per break) above
+     a single deals panel that's always in the same spot on screen. This
+     replaces an old accordion where each break was its own expand-in-place
+     row — clicking break #5 in a list of 6 meant the deals panel landed
+     wherever that row happened to be, so getting to it meant scrolling past
+     every row above it first. Now there's exactly one panel, and switching
+     breaks just swaps its contents in place. */
+  .break-pills{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:6px;-webkit-overflow-scrolling:touch;}
+  .break-pill{flex:0 0 auto;text-align:left;padding:10px 16px;border-radius:14px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;font-family:inherit;color:inherit;transition:background .15s,border-color .15s;}
+  .break-pill:hover{background:rgba(245,176,76,0.08);}
+  .break-pill.active{border-color:var(--accent);background:rgba(245,176,76,0.14);}
+  .break-pill .dates{font-weight:800;font-size:15px;letter-spacing:-.01em;white-space:nowrap;}
+  .break-pill .pill-meta{color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;}
+  .break-pill .pill-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:3px;}
+  .break-pill.next-up{background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
+  .break-pill.next-up.active{border-color:var(--accent2);background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.12));}
+
+  .break-panel{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;}
+  .break-panel.ongoing{border-color:var(--accent2);}
+  .break-panel-header{padding:20px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;background:rgba(245,176,76,0.06);border-bottom:1px solid var(--border);}
+  .break-panel-header .dates{font-weight:800;font-size:clamp(20px,4vw,26px);letter-spacing:-.01em;}
+  .break-panel-header .meta{color:var(--muted);font-size:13.5px;margin-top:2px;}
+  .break-panel-header .next-up-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:6px;}
+  .break-panel-header .count-wrap{text-align:center;flex:none;}
+  .break-panel-header .count{font-size:clamp(26px,6vw,36px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
+  .break-panel-header .count-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px;}
+  .break-panel-body{padding:18px 22px 22px;}
   .badge{background:var(--accent);color:#101820;font-size:12px;font-weight:700;padding:4px 12px;border-radius:var(--radius-pill);}
   .badge.soon{background:var(--accent2);}
-  .accordion-body{padding:0 18px 18px;border-top:1px solid var(--border);}
-  .accordion-body .disclaimer{margin:16px 0;}
+  .break-panel-body .disclaimer{margin:16px 0;}
   .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
   /* overflow is intentionally NOT hidden on .deal-card — the "Quick trip"
      tooltip inside .deal-tags-row needs to be able to pop outside the
@@ -390,32 +406,10 @@
   .break-select-row-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
   .break-projected{color:var(--muted);font-size:13px;}
   #breaksList{margin-top:16px;}
-  .break-row .days-badge{font-size:12.5px;font-weight:700;padding:5px 12px;border-radius:var(--radius-pill);white-space:nowrap;}
-  .break-row .days-badge.ongoing{background:var(--accent2);color:#101820;}
-  .break-row .days-badge.soon{background:rgba(245,176,76,0.2);color:var(--accent2);}
-  .break-row .days-badge.later{background:rgba(244,238,227,0.12);color:var(--muted);}
-
-  /* The soonest break gets the "hero" treatment as the first item in the
-     breaks list itself (not a separate banner above it — that used to
-     duplicate the same date range twice on screen). Same accordion-item
-     shell as every other break, just with more visual weight: a warm
-     gradient background and a bigger countdown in place of the small
-     "X days away" pill. Still opens/closes exactly like any other row. */
-  /* Named "next-up" rather than "hero" deliberately — "hero" is already
-     used by the full-bleed landing-page photo banner further down
-     (.hero{height:100dvh}, plus its own ::after gradient), and reusing
-     that class name here made this element inherit THAT sizing, producing
-     a huge near-viewport-height empty box. Distinct class name avoids the
-     collision entirely. */
-  .accordion-item.next-up{background:linear-gradient(135deg, rgba(245,176,76,0.16), rgba(245,176,76,0.05));border-color:rgba(245,176,76,0.35);}
-  .accordion-item.next-up.ongoing{background:linear-gradient(135deg, rgba(245,176,76,0.28), rgba(245,176,76,0.1));border-color:var(--accent2);}
-  .accordion-item.next-up .break-row{padding:20px 22px;}
-  .accordion-item.next-up .next-up-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin-bottom:6px;}
-  .accordion-item.next-up .dates{font-size:clamp(22px,5vw,30px);}
-  .accordion-item.next-up .meta{font-size:13.5px;}
-  .accordion-item.next-up .count-wrap{text-align:center;flex:none;}
-  .accordion-item.next-up .count{font-size:clamp(26px,6vw,36px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
-  .accordion-item.next-up .count-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px;}
+  .break-pill .days-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:var(--radius-pill);white-space:nowrap;display:inline-block;margin-top:6px;}
+  .break-pill .days-badge.ongoing{background:var(--accent2);color:#101820;}
+  .break-pill .days-badge.soon{background:rgba(245,176,76,0.2);color:var(--accent2);}
+  .break-pill .days-badge.later{background:rgba(244,238,227,0.12);color:var(--muted);}
   @media (max-width: 640px){
     .break-select-row{flex-direction:column;align-items:flex-start;}
     /* Above ~640px the date block and countdown sit side by side. Below
@@ -423,8 +417,8 @@
        line, left-aligned instead of centered (space-between has nothing
        left to space once there's only one item on a line) — stacking them
        explicitly and centering the countdown reads much better on a phone. */
-    .accordion-item.next-up .break-row{padding:18px;flex-direction:column;align-items:stretch;text-align:left;}
-    .accordion-item.next-up .right{justify-content:space-between;padding-top:10px;border-top:1px solid rgba(245,176,76,0.25);}
+    .break-panel-header{padding:16px 18px;flex-direction:column;align-items:stretch;text-align:left;}
+    .break-panel-header .count-wrap{text-align:left;padding-top:10px;border-top:1px solid rgba(245,176,76,0.25);}
   }
 
   /* ---------- mobile ---------- */
@@ -454,7 +448,6 @@
     .mode-toggle button{min-width:0;}
     .top-bar{flex-direction:column;align-items:stretch;}
     .top-bar .btn{width:100%;}
-    .break-row{padding:14px;}
     .deals-grid{grid-template-columns:1fr;}
     .links-row a{padding:4px 0;}
     .modal{padding:20px;}
@@ -1826,30 +1819,16 @@ async function renderDashboard(){
     return;
   }
 
-  // Drop the open key if that break no longer exists (roster changed).
-  // Breaks load minimised — nothing auto-expands — but the soonest break's
-  // deals/events are still fetched quietly in the background (cache only,
-  // no re-render) so tapping it open feels instant instead of showing
-  // "Looking up deals…" every time.
-  if(!currentBreaks.some(b => b.key === openBreakKey)) openBreakKey = null;
-
+  // renderBreaksList defaults openBreakKey to the soonest break if it's
+  // unset or no longer matches (roster changed) and fetches its deals —
+  // the pill switcher always shows exactly one break, so there's no
+  // "nothing selected" state to preserve here like the old accordion had.
   renderBreaksList();
-  const prefetchKeys = new Set([currentBreaks[0].key]);
-  if(openBreakKey) prefetchKeys.add(openBreakKey);
-  prefetchKeys.forEach(key => {
-    if(!dealsCache[key]) loadDeals(key);
-    if(!eventsCache[key]) loadEvents(key);
-  });
-}
-
-function toggleBreak(key){
-  // Opening one break closes whichever other one was open — only one at a time.
-  openBreakKey = (openBreakKey === key) ? null : key;
-  if(openBreakKey){
-    if(!dealsCache[openBreakKey]) loadDeals(openBreakKey);
-    if(!eventsCache[openBreakKey]) loadEvents(openBreakKey);
-  }
-  renderBreaksList();
+  // Keep the soonest break's deals/events warm in the background even when
+  // a different one is currently selected, so switching back to it feels
+  // instant instead of showing "Looking up options…" again.
+  if(!dealsCache[currentBreaks[0].key]) loadDeals(currentBreaks[0].key);
+  if(!eventsCache[currentBreaks[0].key]) loadEvents(currentBreaks[0].key);
 }
 
 async function loadDeals(key){
@@ -1948,6 +1927,11 @@ function nextBreakCountdown(b){
   return { big: String(b.daysUntil), label: 'days to go', ongoing: false };
 }
 
+// Renders the break pill row plus a single panel showing whichever break
+// is currently selected (openBreakKey) — see the .break-pills/.break-panel
+// CSS comment for why this replaced the old per-row accordion. Exactly one
+// break is ever "selected" once any breaks exist; openBreakKey defaults to
+// the soonest one below if it's unset or no longer valid (roster changed).
 function renderBreaksList(){
   const container = document.getElementById('breaksList');
   const heading = document.getElementById('breakHeading');
@@ -1965,57 +1949,78 @@ function renderBreaksList(){
     ? `Projected from ${currentPattern.daysOn} on / ${currentPattern.daysOff} off`
     : '';
 
-  container.innerHTML = currentBreaks.slice(0, 6).map((b, i) => {
-    const isOpen = openBreakKey === b.key;
-    let bodyHtml = '';
-    if(isOpen){
-      const cached = dealsCache[b.key];
-      if(!cached){
-        bodyHtml = '<div class="empty">Looking up options…</div>';
-      }else if(cached.error){
-        bodyHtml = '<div class="empty">Could not load options: ' + cached.error + '</div>';
-      }else{
-        bodyHtml = dealsMarkup(cached);
-      }
-      // Events are additive, not load-bearing — a missing/loading/errored
-      // result just means the section doesn't appear, same treatment as
-      // "not configured" (no error banner cluttering the deals view).
-      bodyHtml += eventsMarkup(eventsCache[b.key]);
+  const breaks = currentBreaks.slice(0, 6);
+  if(!breaks.some(b => b.key === openBreakKey)) openBreakKey = breaks[0].key;
+  const selected = breaks.find(b => b.key === openBreakKey);
+  const isHeroSelected = breaks[0].key === selected.key;
 
-      // Dead-end fallback: if this break genuinely has no flight deals and
-      // no events, don't leave "no fares found" as the only thing on
-      // screen. Fetch (once) and show real free/bookable things to do near
-      // home instead, so there's always something worth looking at.
-      if(dealsSettledEmpty(cached) && eventsSettledEmpty(eventsCache[b.key])){
-        if(!activitiesCache[b.key] && !activitiesLoading[b.key]) loadActivities(b.key);
-        bodyHtml += activitiesMarkup(activitiesCache[b.key]);
-      }
-    }
-    // The soonest break (i === 0) gets the bigger "hero" treatment right
-    // inside the list — same expand/collapse behaviour as every other row,
-    // just more prominent, and without repeating its date range in a
-    // separate banner above.
+  const pillsHtml = breaks.map((b, i) => {
     const isHero = i === 0;
-    const rightHtml = isHero
-      ? (() => { const c = nextBreakCountdown(b); return `<div class="count-wrap"><div class="count">${c.big}</div><div class="count-label">${c.label}</div></div>`; })()
-      : daysBadge(b);
+    const isActive = b.key === selected.key;
     return `
-      <div class="accordion-item${isOpen ? ' open' : ''}${isHero ? ' next-up' : ''}${isHero && b.isOngoing ? ' ongoing' : ''}">
-        <div class="break-row" onclick="toggleBreak('${b.key}')">
-          <div>
-            ${isHero ? '<div class="next-up-label">Your next break</div>' : ''}
-            <div class="dates">${fmtDateRange(b)}</div>
-            <div class="meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
-          </div>
-          <div class="right">
-            ${rightHtml}
-            <span class="chevron">›</span>
-          </div>
-        </div>
-        ${isOpen ? `<div class="accordion-body">${bodyHtml}</div>` : ''}
-      </div>
+      <button class="break-pill${isActive ? ' active' : ''}${isHero ? ' next-up' : ''}" onclick="selectBreak('${b.key}')">
+        ${isHero ? '<div class="pill-label">Next</div>' : ''}
+        <div class="dates">${fmtDateRange(b)}</div>
+        <div class="pill-meta">${b.duration} day${b.duration === 1 ? '' : 's'} off</div>
+        ${isHero ? '' : daysBadge(b)}
+      </button>
     `;
   }).join('');
+
+  const cached = dealsCache[selected.key];
+  let bodyHtml = '';
+  if(!cached){
+    bodyHtml = '<div class="empty">Looking up options…</div>';
+  }else if(cached.error){
+    bodyHtml = '<div class="empty">Could not load options: ' + cached.error + '</div>';
+  }else{
+    bodyHtml = dealsMarkup(cached);
+  }
+  // Events are additive, not load-bearing — a missing/loading/errored
+  // result just means the section doesn't appear, same treatment as
+  // "not configured" (no error banner cluttering the deals view).
+  bodyHtml += eventsMarkup(eventsCache[selected.key]);
+
+  // Dead-end fallback: if this break genuinely has no flight deals and no
+  // events, don't leave "no fares found" as the only thing on screen.
+  // Fetch (once) and show real free/bookable things to do near home
+  // instead, so there's always something worth looking at.
+  if(dealsSettledEmpty(cached) && eventsSettledEmpty(eventsCache[selected.key])){
+    if(!activitiesCache[selected.key] && !activitiesLoading[selected.key]) loadActivities(selected.key);
+    bodyHtml += activitiesMarkup(activitiesCache[selected.key]);
+  }
+
+  const rightHtml = isHeroSelected
+    ? (() => { const c = nextBreakCountdown(selected); return `<div class="count-wrap"><div class="count">${c.big}</div><div class="count-label">${c.label}</div></div>`; })()
+    : daysBadge(selected);
+
+  container.innerHTML = `
+    <div class="break-pills">${pillsHtml}</div>
+    <div class="break-panel${isHeroSelected && selected.isOngoing ? ' ongoing' : ''}">
+      <div class="break-panel-header">
+        <div>
+          ${isHeroSelected ? '<div class="next-up-label">Your next break</div>' : ''}
+          <div class="dates">${fmtDateRange(selected)}</div>
+          <div class="meta">${selected.duration} day${selected.duration === 1 ? '' : 's'} off</div>
+        </div>
+        <div class="right">${rightHtml}</div>
+      </div>
+      <div class="break-panel-body">${bodyHtml}</div>
+    </div>
+  `;
+
+  // Trigger the fetch here (not at the click site) so this covers both an
+  // explicit pill click (selectBreak below) and the implicit default
+  // selection above — loadDeals/loadEvents both guard against duplicate
+  // concurrent fetches, so calling them on every render is safe.
+  if(!dealsCache[selected.key]) loadDeals(selected.key);
+  if(!eventsCache[selected.key]) loadEvents(selected.key);
+}
+
+function selectBreak(key){
+  if(openBreakKey === key) return;
+  openBreakKey = key;
+  renderBreaksList();
 }
 
 // ---------- searchable Hometown / Home airport fields ----------

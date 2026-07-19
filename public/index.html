@@ -118,13 +118,17 @@
      reach the fourth. All four still fetch eagerly in the background (see
      renderBreaksList), so switching tabs never shows a fresh loading
      state — only the very first render of a break does. */
-  .panel-tabs{display:flex;gap:2px;margin:-4px -2px 16px;padding-bottom:0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .panel-tab{flex:0 0 auto;padding:9px 14px;border:none;background:transparent;color:var(--muted);font-weight:600;font-size:13.5px;font-family:inherit;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;}
-  .panel-tab:hover{color:var(--text);}
-  .panel-tab.active{color:var(--accent2);border-bottom-color:var(--accent2);}
-  /* Restaurants and Stay tabs are a single honest link-out card (real
-     search results, not fabricated listings) rather than a grid of cards
-     like Flights/Events — see restaurantsMarkup/stayMarkup. */
+  /* A solid segmented-control look (filled active pill, same family as
+     .mode-toggle's roster-mode switch) reads much more clearly as
+     clickable navigation than the earlier plain-underline tabs did —
+     those were easy to mistake for section labels rather than buttons. */
+  .panel-tabs{display:flex;gap:6px;margin:-4px -4px 18px;padding:5px;background:rgba(244,238,227,0.07);border-radius:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .panel-tab{flex:0 0 auto;padding:9px 16px;border:none;border-radius:9px;background:transparent;color:var(--muted);font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s;}
+  .panel-tab:hover{color:var(--text);background:rgba(244,238,227,0.08);}
+  .panel-tab.active{color:#101820;background:var(--accent);box-shadow:0 2px 10px rgba(245,176,76,0.35);}
+  /* Restaurants and Stay tabs show a grid of real, currently-mapped venues
+     (see venueCard() in the frontend script) plus one honest link-out card
+     to a real search page underneath — see restaurantsMarkup/stayMarkup. */
   .link-out-card{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;flex-wrap:wrap;margin-top:16px;}
   /* First thing in the tab (no real restaurants found, so it's the only
      content) shouldn't carry that same top margin — the tab body's own
@@ -134,6 +138,17 @@
   .link-out-body{flex:1;min-width:180px;}
   .link-out-title{font-weight:700;font-size:15px;}
   .link-out-sub{color:var(--muted);font-size:13px;margin-top:3px;line-height:1.4;}
+  /* Real restaurant/stay venue cards — a styled placeholder "photo" (icon
+     on a branded gradient, same visual family as .deal-photo-fallback for
+     flight destinations without a curated photo) rather than an actual
+     photo of that specific venue, which would need a paid Places API. */
+  .venue-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;}
+  .venue-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;display:flex;flex-direction:column;}
+  .venue-photo{height:92px;display:flex;align-items:center;justify-content:center;font-size:32px;background:linear-gradient(135deg, rgba(245,176,76,0.22), rgba(16,24,32,0.96));flex:none;}
+  .venue-card-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:2px;flex:1;}
+  .venue-card .title{font-weight:700;font-size:14px;}
+  .venue-card .meta{color:var(--muted);font-size:12px;margin-bottom:10px;}
+  .venue-card .btn{margin-top:auto;}
   .badge{background:var(--accent);color:#101820;font-size:12px;font-weight:700;padding:4px 12px;border-radius:var(--radius-pill);}
   .badge.soon{background:var(--accent2);}
   .break-panel-body .disclaimer{margin:16px 0;}
@@ -2575,21 +2590,27 @@ function activitiesMarkup(result){
 }
 
 // ---------- Restaurants tab: real OpenTable search link-out ----------
-// Real, named restaurants near the hometown (sourced live from
-// OpenStreetMap — see lib/activities.js findRealRestaurants), not live
-// availability or bookability. Below the list, an honest link-out card to
-// a real OpenTable search page for anyone who wants to actually book,
-// same "real search results, not invented cards" pattern as the flight
-// search-only cards.
-function restaurantRow(r){
+// ---------- Restaurants and Stay tabs: real names via OpenStreetMap ----------
+// Both tabs show real, currently-mapped venues (see lib/activities.js
+// findRealRestaurants/findRealStays) — not live availability or
+// bookability (neither OpenTable's nor Booking.com's real listings APIs
+// are self-serve, see lib/opentable.js / lib/booking.js), just genuine
+// places worth considering. Each card gets a styled placeholder "photo"
+// (a category icon on a branded gradient) rather than an actual photo of
+// that specific venue — a real per-venue photo would need Google Places
+// (paid API, separate setup); this keeps the same zero-cost, zero-signup,
+// "never show something we can't back up" approach as the rest of the
+// app, while still giving these cards the same visual weight as the
+// Flights tab's deal-card photos instead of a plain text row.
+function venueCard(v, { icon, subtitle }){
   return `
-    <div class="event-row">
-      <div class="event-thumb placeholder">🍽️</div>
-      <div class="info">
-        <div class="title">${r.title}</div>
-        <div class="meta">${r.cuisine || 'Restaurant'}</div>
+    <div class="venue-card">
+      <div class="venue-photo">${icon}</div>
+      <div class="venue-card-body">
+        <div class="title">${v.title}</div>
+        <div class="meta">${subtitle}</div>
+        <a class="btn secondary small" href="${v.mapUrl}" target="_blank" rel="noopener">View on map →</a>
       </div>
-      <a class="btn secondary small" href="${r.mapUrl}" target="_blank" rel="noopener">View on map →</a>
     </div>
   `;
 }
@@ -2622,37 +2643,53 @@ function restaurantsMarkup(result){
   }
 
   return `
-    <div class="events-section">
-      <div class="events-section-head">
-        <h3>🍽️ Real restaurants near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
-        <p>Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.</p>
-      </div>
-      ${restaurants.map(restaurantRow).join('')}
+    <div class="events-section-head" style="margin-bottom:12px;">
+      <h3>🍽️ Real restaurants near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
+      <p>Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.</p>
     </div>
+    <div class="venue-grid">${restaurants.map(r => venueCard(r, { icon: '🍽️', subtitle: r.cuisine || 'Restaurant' })).join('')}</div>
     ${linkHtml}
   `;
 }
 
-// ---------- Stay tab: real Booking.com search link-out ----------
-// Same honest link-out pattern as Restaurants above, but break-specific —
-// pre-filled with this break's actual dates so it's a genuinely useful
-// starting point for a local staycation, not just a generic homepage link.
-function stayMarkup(result){
-  if(!result) return '<div class="empty">Loading…</div>';
-  if(result.error) return '<div class="empty">Could not load: ' + result.error + '</div>';
-  if(result.source === 'not-configured' || !result.stay){
-    return `<div class="disclaimer">🏨 Add your hometown in <a href="#" onclick="showView('setup');return false;">Setup</a> to find places to stay for a local getaway.</div>`;
-  }
-  const s = result.stay;
+// ---------- Stay tab: real accommodation + Booking.com search link-out ----------
+// searchLink is break-specific (pre-filled with this break's actual
+// dates), stays (the real OSM-sourced list) are hometown-only — see
+// buildStayForBreak/buildRealStaysForSettings in server.js.
+function staySearchLinkMarkup(link){
+  if(!link) return '';
   return `
     <div class="link-out-card">
       <div class="link-out-icon">🏨</div>
       <div class="link-out-body">
-        <div class="link-out-title">Find a stay near ${s.cityLabel}</div>
-        <div class="link-out-sub">Real Booking.com search results${s.datesApplied ? ", pre-filled with this break's dates" : ''} — a local getaway without the flight.</div>
+        <div class="link-out-title">Search stays near ${link.cityLabel}</div>
+        <div class="link-out-sub">Real Booking.com search results${link.datesApplied ? ", pre-filled with this break's dates" : ''} — a local getaway without the flight.</div>
       </div>
-      <a class="btn secondary small" href="${s.url}" target="_blank" rel="noopener sponsored">Search Booking.com →</a>
+      <a class="btn secondary small" href="${link.url}" target="_blank" rel="noopener sponsored">Search Booking.com →</a>
     </div>
+  `;
+}
+
+function stayMarkup(result){
+  if(!result) return '<div class="empty">Loading…</div>';
+  if(result.error) return '<div class="empty">Could not load: ' + result.error + '</div>';
+  if(result.source === 'not-configured'){
+    return `<div class="disclaimer">🏨 Add your hometown in <a href="#" onclick="showView('setup');return false;">Setup</a> to find places to stay for a local getaway.</div>`;
+  }
+  const stays = result.stays || [];
+  const linkHtml = staySearchLinkMarkup(result.searchLink);
+
+  if(!stays.length){
+    return linkHtml || '<div class="empty">No accommodation found nearby yet.</div>';
+  }
+
+  return `
+    <div class="events-section-head" style="margin-bottom:12px;">
+      <h3>🏨 Real places to stay near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
+      <p>Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.</p>
+    </div>
+    <div class="venue-grid">${stays.map(s => venueCard(s, { icon: '🏨', subtitle: s.stayType || 'Accommodation' })).join('')}</div>
+    ${linkHtml}
   `;
 }
 

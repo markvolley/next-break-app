@@ -22,7 +22,7 @@ import {
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, withBackfill, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
-import { findFreeActivities, findRealRestaurants, geocodeHometown } from './lib/activities.js';
+import { findFreeActivities, findRealRestaurants, findRealStays, geocodeHometown } from './lib/activities.js';
 import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
 import { findRestaurantLink } from './lib/opentable.js';
 import { findStayLink } from './lib/booking.js';
@@ -1082,19 +1082,54 @@ async function handleGetRestaurants(req, res, userId) {
   sendJson(res, 200, { source, hometown: settings.hometown || '', restaurants, searchLink });
 }
 
-// Break-based like events, not hometown-only like restaurants above — a
-// staycation is booked for a specific break's actual dates, so the link
-// needs breakKey to know which break's start/end to pre-fill. No network
-// call at all (see lib/booking.js), so no caching needed either.
-function buildStayForBreak(brk, settings) {
-  if (!settings.hometown) return { source: 'not-configured', stay: null };
-  const stay = findStayLink({
+// Real, named accommodation near a hometown — same OSM-sourced, "not live
+// availability, just real places worth considering" pattern as
+// buildRealRestaurantsForSettings above, and cached the same way (the
+// listings themselves don't depend on a break's dates, only the
+// Booking.com search link below does).
+const STAYS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const STAYS_EMPTY_TTL_MS = 60 * 60 * 1000; // 1h
+const staysResultCache = new Map(); // hometown (lowercased) -> { stays, fetchedAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of staysResultCache) {
+    const ttl = entry.stays.length ? STAYS_CACHE_TTL_MS : STAYS_EMPTY_TTL_MS;
+    if (now - entry.fetchedAt > ttl) staysResultCache.delete(key);
+  }
+}, 60 * 60 * 1000).unref();
+
+async function buildRealStaysForSettings(settings) {
+  const key = settings.hometown.trim().toLowerCase();
+  const cached = staysResultCache.get(key);
+  if (cached) {
+    const ttl = cached.stays.length ? STAYS_CACHE_TTL_MS : STAYS_EMPTY_TTL_MS;
+    if (Date.now() - cached.fetchedAt < ttl) return cached.stays;
+  }
+  let stays = [];
+  try {
+    stays = await findRealStays({ hometown: settings.hometown, seed: new Date().toISOString().slice(0, 10) });
+  } catch (e) {
+    console.error('[stays] findRealStays threw:', e.message);
+  }
+  staysResultCache.set(key, { stays, fetchedAt: Date.now() });
+  return stays;
+}
+
+// Break-based like events, not hometown-only like restaurants above — the
+// Booking.com search link needs breakKey to know which break's actual
+// start/end to pre-fill as checkin/checkout. The real OSM listings above
+// don't vary by break though, so those are fetched hometown-only.
+async function buildStayForBreak(brk, settings) {
+  if (!settings.hometown) return { source: 'not-configured', stays: [], searchLink: null };
+  const searchLink = findStayLink({
     hometown: settings.hometown,
     checkin: toISO(brk.start),
     checkout: toISO(brk.end),
     affiliatePrefix: BOOKING_AFFILIATE_LINK_PREFIX
   });
-  return { source: 'real', stay };
+  const stays = await buildRealStaysForSettings(settings);
+  return { source: stays.length ? 'real' : 'search-only', stays, searchLink };
 }
 
 async function handleGetStay(req, res, userId, query) {
@@ -1106,8 +1141,8 @@ async function handleGetStay(req, res, userId, query) {
   const brk = breaks.find(b => b.key === breakKey);
   if (!brk) return sendJson(res, 404, { error: 'That break no longer matches your current roster.' });
 
-  const { source, stay } = buildStayForBreak(brk, settings);
-  sendJson(res, 200, { breakKey, source, hometown: settings.hometown || '', stay });
+  const { source, stays, searchLink } = await buildStayForBreak(brk, settings);
+  sendJson(res, 200, { breakKey, source, hometown: settings.hometown || '', stays, searchLink });
 }
 
 async function handleGetEvents(req, res, userId, query) {
@@ -1700,7 +1735,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
     console.log(`Ticketmaster events: ${TICKETMASTER_API_KEY ? 'configured' : 'NOT configured (set TICKETMASTER_API_KEY in .env — no events section will show until then)'}`);
     console.log(`Restaurant listings: real names via OpenStreetMap, always on (no API key needed); OpenTable search link affiliate tracking ${OPENTABLE_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set OPENTABLE_AFFILIATE_LINK_PREFIX in .env once your OpenTable affiliate application is approved)'}`);
-    console.log(`Booking.com staycation links: always on (no API key needed) — affiliate tracking ${BOOKING_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set BOOKING_AFFILIATE_LINK_PREFIX in .env once your Booking.com affiliate application via Awin is approved)'}`);
+    console.log(`Stay listings: real names via OpenStreetMap, always on (no API key needed); Booking.com search link affiliate tracking ${BOOKING_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set BOOKING_AFFILIATE_LINK_PREFIX in .env once your Booking.com affiliate application via Awin is approved)'}`);
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);

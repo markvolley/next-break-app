@@ -22,7 +22,7 @@ import {
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, withBackfill, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
-import { findFreeActivities, geocodeHometown } from './lib/activities.js';
+import { findFreeActivities, findRealRestaurants, geocodeHometown } from './lib/activities.js';
 import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
 import { findRestaurantLink } from './lib/opentable.js';
 import { findStayLink } from './lib/booking.js';
@@ -1024,23 +1024,62 @@ async function handleGetActivities(req, res, userId) {
   sendJson(res, 200, { source, hometown: settings.hometown || '', activities });
 }
 
+// Real, named restaurants near a hometown — sourced live from OpenStreetMap
+// (see lib/activities.js findRealRestaurants), same "free, keyless, no
+// approval wait" pattern as the free-activities fallback below. This is
+// NOT live availability or bookability (OpenTable's real listings API needs
+// its own partner approval — see lib/opentable.js) — just real, currently-
+// mapped restaurant names, which is what was actually asked for. Cached
+// server-side like buildFreeActivitiesForSettings, since Overpass is a
+// shared free public service and shouldn't be hit on every page load.
+const RESTAURANTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — long enough to be a good citizen of Overpass, short enough that the `seed` below gives noticeable day-to-day variety
+const RESTAURANTS_EMPTY_TTL_MS = 60 * 60 * 1000; // 1h — same negative-cache reasoning as freeActivitiesCache above
+const restaurantsResultCache = new Map(); // hometown (lowercased) -> { restaurants, fetchedAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of restaurantsResultCache) {
+    const ttl = entry.restaurants.length ? RESTAURANTS_CACHE_TTL_MS : RESTAURANTS_EMPTY_TTL_MS;
+    if (now - entry.fetchedAt > ttl) restaurantsResultCache.delete(key);
+  }
+}, 60 * 60 * 1000).unref();
+
+async function buildRealRestaurantsForSettings(settings) {
+  const key = settings.hometown.trim().toLowerCase();
+  const cached = restaurantsResultCache.get(key);
+  if (cached) {
+    const ttl = cached.restaurants.length ? RESTAURANTS_CACHE_TTL_MS : RESTAURANTS_EMPTY_TTL_MS;
+    if (Date.now() - cached.fetchedAt < ttl) return cached.restaurants;
+  }
+  let restaurants = [];
+  try {
+    // Seeded by today's date (not per-request) so the sample is stable
+    // within a day — a page refresh shouldn't reshuffle the list — but
+    // still varies once the cache naturally refreshes on a new day.
+    restaurants = await findRealRestaurants({ hometown: settings.hometown, seed: new Date().toISOString().slice(0, 10) });
+  } catch (e) {
+    console.error('[restaurants] findRealRestaurants threw:', e.message);
+  }
+  restaurantsResultCache.set(key, { restaurants, fetchedAt: Date.now() });
+  return restaurants;
+}
+
 // Hometown-based like activities, not break-based like deals/events — a
-// restaurant search link doesn't depend on the break's dates, so there's
-// nothing to look up per-break. No network call at all (see
-// lib/opentable.js), so this never needs caching either.
-function buildRestaurantForSettings(settings) {
-  if (!settings.hometown) return { source: 'not-configured', restaurant: null };
-  const restaurant = findRestaurantLink({
+// restaurant search doesn't depend on the break's dates.
+async function buildRestaurantForSettings(settings) {
+  if (!settings.hometown) return { source: 'not-configured', restaurants: [], searchLink: null };
+  const searchLink = findRestaurantLink({
     hometown: settings.hometown,
     affiliatePrefix: OPENTABLE_AFFILIATE_LINK_PREFIX
   });
-  return { source: 'real', restaurant };
+  const restaurants = await buildRealRestaurantsForSettings(settings);
+  return { source: restaurants.length ? 'real' : 'search-only', restaurants, searchLink };
 }
 
 async function handleGetRestaurants(req, res, userId) {
   const settings = getSettings(userId);
-  const { source, restaurant } = buildRestaurantForSettings(settings);
-  sendJson(res, 200, { source, hometown: settings.hometown || '', restaurant });
+  const { source, restaurants, searchLink } = await buildRestaurantForSettings(settings);
+  sendJson(res, 200, { source, hometown: settings.hometown || '', restaurants, searchLink });
 }
 
 // Break-based like events, not hometown-only like restaurants above — a
@@ -1660,7 +1699,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
     console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
     console.log(`Ticketmaster events: ${TICKETMASTER_API_KEY ? 'configured' : 'NOT configured (set TICKETMASTER_API_KEY in .env — no events section will show until then)'}`);
-    console.log(`OpenTable restaurant links: always on (no API key needed) — affiliate tracking ${OPENTABLE_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set OPENTABLE_AFFILIATE_LINK_PREFIX in .env once your OpenTable affiliate application is approved)'}`);
+    console.log(`Restaurant listings: real names via OpenStreetMap, always on (no API key needed); OpenTable search link affiliate tracking ${OPENTABLE_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set OPENTABLE_AFFILIATE_LINK_PREFIX in .env once your OpenTable affiliate application is approved)'}`);
     console.log(`Booking.com staycation links: always on (no API key needed) — affiliate tracking ${BOOKING_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set BOOKING_AFFILIATE_LINK_PREFIX in .env once your Booking.com affiliate application via Awin is approved)'}`);
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);

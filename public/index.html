@@ -125,7 +125,11 @@
   /* Restaurants and Stay tabs are a single honest link-out card (real
      search results, not fabricated listings) rather than a grid of cards
      like Flights/Events — see restaurantsMarkup/stayMarkup. */
-  .link-out-card{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;flex-wrap:wrap;}
+  .link-out-card{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;flex-wrap:wrap;margin-top:16px;}
+  /* First thing in the tab (no real restaurants found, so it's the only
+     content) shouldn't carry that same top margin — the tab body's own
+     padding already provides breathing room. */
+  .panel-tab-content > .link-out-card:first-child{margin-top:0;}
   .link-out-icon{font-size:26px;flex:none;}
   .link-out-body{flex:1;min-width:180px;}
   .link-out-title{font-weight:700;font-size:15px;}
@@ -2571,27 +2575,61 @@ function activitiesMarkup(result){
 }
 
 // ---------- Restaurants tab: real OpenTable search link-out ----------
-// Not a listing of individual restaurants (see lib/opentable.js for why —
-// OpenTable's real listings API needs its own partner approval, no
-// self-serve access) — one honest card linking to a real, working
-// OpenTable search page for the hometown, same "real search results, not
-// invented cards" pattern as the flight search-only cards.
-function restaurantsMarkup(result){
-  if(!result) return '<div class="empty">Loading…</div>';
-  if(result.error) return '<div class="empty">Could not load: ' + result.error + '</div>';
-  if(result.source === 'not-configured' || !result.restaurant){
-    return `<div class="disclaimer">🍽️ Add your hometown in <a href="#" onclick="showView('setup');return false;">Setup</a> to find restaurants near you.</div>`;
-  }
-  const r = result.restaurant;
+// Real, named restaurants near the hometown (sourced live from
+// OpenStreetMap — see lib/activities.js findRealRestaurants), not live
+// availability or bookability. Below the list, an honest link-out card to
+// a real OpenTable search page for anyone who wants to actually book,
+// same "real search results, not invented cards" pattern as the flight
+// search-only cards.
+function restaurantRow(r){
+  return `
+    <div class="event-row">
+      <div class="event-thumb placeholder">🍽️</div>
+      <div class="info">
+        <div class="title">${r.title}</div>
+        <div class="meta">${r.cuisine || 'Restaurant'}</div>
+      </div>
+      <a class="btn secondary small" href="${r.mapUrl}" target="_blank" rel="noopener">View on map →</a>
+    </div>
+  `;
+}
+
+function restaurantSearchLinkMarkup(link){
+  if(!link) return '';
   return `
     <div class="link-out-card">
       <div class="link-out-icon">🍽️</div>
       <div class="link-out-body">
-        <div class="link-out-title">Find a table in ${r.cityLabel}</div>
-        <div class="link-out-sub">Real OpenTable search results${r.matched ? '' : ' — search from there for your exact suburb'}, not availability we're guessing at.</div>
+        <div class="link-out-title">Search all restaurants in ${link.cityLabel}</div>
+        <div class="link-out-sub">Real OpenTable search results${link.matched ? '' : ' — search from there for your exact suburb'}, book a table directly.</div>
       </div>
-      <a class="btn secondary small" href="${r.url}" target="_blank" rel="noopener sponsored">Search OpenTable →</a>
+      <a class="btn secondary small" href="${link.url}" target="_blank" rel="noopener sponsored">Search OpenTable →</a>
     </div>
+  `;
+}
+
+function restaurantsMarkup(result){
+  if(!result) return '<div class="empty">Loading…</div>';
+  if(result.error) return '<div class="empty">Could not load: ' + result.error + '</div>';
+  if(result.source === 'not-configured'){
+    return `<div class="disclaimer">🍽️ Add your hometown in <a href="#" onclick="showView('setup');return false;">Setup</a> to find restaurants near you.</div>`;
+  }
+  const restaurants = result.restaurants || [];
+  const linkHtml = restaurantSearchLinkMarkup(result.searchLink);
+
+  if(!restaurants.length){
+    return linkHtml || '<div class="empty">No restaurants found nearby yet.</div>';
+  }
+
+  return `
+    <div class="events-section">
+      <div class="events-section-head">
+        <h3>🍽️ Real restaurants near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
+        <p>Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.</p>
+      </div>
+      ${restaurants.map(restaurantRow).join('')}
+    </div>
+    ${linkHtml}
   `;
 }
 

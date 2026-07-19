@@ -23,6 +23,7 @@ import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature 
 import { fetchAllRealFares, selectDeals, withBackfill, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
 import { findActivities } from './lib/viator.js';
 import { findFreeActivities, findRealRestaurants, findRealStays, geocodeHometown } from './lib/activities.js';
+import { findYelpBusinesses } from './lib/yelp.js';
 import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
 import { findRestaurantLink } from './lib/opentable.js';
 import { findStayLink } from './lib/booking.js';
@@ -85,6 +86,17 @@ const TICKETMASTER_AFFILIATE_LINK_PREFIX = process.env.TICKETMASTER_AFFILIATE_LI
 // they give you to make the link commission-tracked — leave unset and it's
 // simply a plain, untracked (but still real) link.
 const OPENTABLE_AFFILIATE_LINK_PREFIX = process.env.OPENTABLE_AFFILIATE_LINK_PREFIX || '';
+
+// Yelp Fusion API — free, self-serve (no billing needed, unlike Google
+// Places), gives real star ratings, review counts and a real photo per
+// venue for the Restaurants/Stay tabs, on top of the free OSM-sourced real
+// names (see lib/yelp.js and lib/activities.js). Preferred source when
+// configured; falls back to the OSM-only names+placeholder-icon path when
+// it isn't, or when Yelp has nothing for a given hometown — same
+// "richer real source first, free real source as fallback" shape as
+// VIATOR_API_KEY falling back to free OSM activities below. Get a key at
+// https://www.yelp.com/developers/v3/manage_app
+const YELP_API_KEY = process.env.YELP_API_KEY || '';
 
 // Same story as OpenTable above, but for Booking.com (Staycation tab) — see
 // lib/booking.js. No API key needed for the link itself; once accepted into
@@ -1052,13 +1064,26 @@ async function buildRealRestaurantsForSettings(settings) {
     if (Date.now() - cached.fetchedAt < ttl) return cached.restaurants;
   }
   let restaurants = [];
-  try {
-    // Seeded by today's date (not per-request) so the sample is stable
-    // within a day — a page refresh shouldn't reshuffle the list — but
-    // still varies once the cache naturally refreshes on a new day.
-    restaurants = await findRealRestaurants({ hometown: settings.hometown, seed: new Date().toISOString().slice(0, 10) });
-  } catch (e) {
-    console.error('[restaurants] findRealRestaurants threw:', e.message);
+  // Yelp first (real ratings/reviews/photos) when configured — falls back
+  // to the free OSM-sourced names below if there's no key, or if Yelp came
+  // back with nothing for this hometown (thinner AU coverage in smaller
+  // regional towns, see lib/yelp.js).
+  if (YELP_API_KEY) {
+    try {
+      restaurants = await findYelpBusinesses({ apiKey: YELP_API_KEY, hometown: settings.hometown, categories: 'restaurants' });
+    } catch (e) {
+      console.error('[restaurants] findYelpBusinesses threw:', e.message);
+    }
+  }
+  if (!restaurants.length) {
+    try {
+      // Seeded by today's date (not per-request) so the sample is stable
+      // within a day — a page refresh shouldn't reshuffle the list — but
+      // still varies once the cache naturally refreshes on a new day.
+      restaurants = await findRealRestaurants({ hometown: settings.hometown, seed: new Date().toISOString().slice(0, 10) });
+    } catch (e) {
+      console.error('[restaurants] findRealRestaurants threw:', e.message);
+    }
   }
   restaurantsResultCache.set(key, { restaurants, fetchedAt: Date.now() });
   return restaurants;
@@ -1107,10 +1132,22 @@ async function buildRealStaysForSettings(settings) {
     if (Date.now() - cached.fetchedAt < ttl) return cached.stays;
   }
   let stays = [];
-  try {
-    stays = await findRealStays({ hometown: settings.hometown, seed: new Date().toISOString().slice(0, 10) });
-  } catch (e) {
-    console.error('[stays] findRealStays threw:', e.message);
+  // Yelp first, same reasoning as buildRealRestaurantsForSettings above —
+  // "hotels" is Yelp's parent category alias covering hotels, guesthouses,
+  // hostels and motels together.
+  if (YELP_API_KEY) {
+    try {
+      stays = await findYelpBusinesses({ apiKey: YELP_API_KEY, hometown: settings.hometown, categories: 'hotels,guesthouses,hostels' });
+    } catch (e) {
+      console.error('[stays] findYelpBusinesses threw:', e.message);
+    }
+  }
+  if (!stays.length) {
+    try {
+      stays = await findRealStays({ hometown: settings.hometown, seed: new Date().toISOString().slice(0, 10) });
+    } catch (e) {
+      console.error('[stays] findRealStays threw:', e.message);
+    }
   }
   staysResultCache.set(key, { stays, fetchedAt: Date.now() });
   return stays;
@@ -1736,6 +1773,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Ticketmaster events: ${TICKETMASTER_API_KEY ? 'configured' : 'NOT configured (set TICKETMASTER_API_KEY in .env — no events section will show until then)'}`);
     console.log(`Restaurant listings: real names via OpenStreetMap, always on (no API key needed); OpenTable search link affiliate tracking ${OPENTABLE_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set OPENTABLE_AFFILIATE_LINK_PREFIX in .env once your OpenTable affiliate application is approved)'}`);
     console.log(`Stay listings: real names via OpenStreetMap, always on (no API key needed); Booking.com search link affiliate tracking ${BOOKING_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set BOOKING_AFFILIATE_LINK_PREFIX in .env once your Booking.com affiliate application via Awin is approved)'}`);
+    console.log(`Yelp ratings/photos: ${YELP_API_KEY ? 'configured' : 'NOT configured (set YELP_API_KEY in .env for real ratings/reviews/photos on Restaurants and Stay — falls back to OpenStreetMap names only until then)'}`);
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);

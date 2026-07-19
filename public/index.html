@@ -145,9 +145,16 @@
   .venue-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;}
   .venue-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;display:flex;flex-direction:column;}
   .venue-photo{height:92px;display:flex;align-items:center;justify-content:center;font-size:32px;background:linear-gradient(135deg, rgba(245,176,76,0.22), rgba(16,24,32,0.96));flex:none;}
+  /* Yelp-sourced cards (v.source==='yelp') swap the icon for a real photo
+     of that specific venue — the gradient background still shows through
+     while the image loads, then sits behind it (harmless, image is opaque
+     and covers the full box). */
+  .venue-photo.has-photo{padding:0;}
+  .venue-photo img{width:100%;height:100%;object-fit:cover;display:block;}
   .venue-card-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:2px;flex:1;}
   .venue-card .title{font-weight:700;font-size:14px;}
   .venue-card .meta{color:var(--muted);font-size:12px;margin-bottom:10px;}
+  .venue-card .meta .venue-source{opacity:.75;}
   .venue-card .btn{margin-top:auto;}
   .badge{background:var(--accent);color:#101820;font-size:12px;font-weight:700;padding:4px 12px;border-radius:var(--radius-pill);}
   .badge.soon{background:var(--accent2);}
@@ -2589,27 +2596,50 @@ function activitiesMarkup(result){
   `;
 }
 
-// ---------- Restaurants tab: real OpenTable search link-out ----------
-// ---------- Restaurants and Stay tabs: real names via OpenStreetMap ----------
-// Both tabs show real, currently-mapped venues (see lib/activities.js
-// findRealRestaurants/findRealStays) — not live availability or
+// ---------- Restaurants and Stay tabs: real names via OpenStreetMap, real ratings/photos via Yelp ----------
+// Both tabs show real, currently-mapped venues — not live availability or
 // bookability (neither OpenTable's nor Booking.com's real listings APIs
-// are self-serve, see lib/opentable.js / lib/booking.js), just genuine
-// places worth considering. Each card gets a styled placeholder "photo"
-// (a category icon on a branded gradient) rather than an actual photo of
-// that specific venue — a real per-venue photo would need Google Places
-// (paid API, separate setup); this keeps the same zero-cost, zero-signup,
-// "never show something we can't back up" approach as the rest of the
-// app, while still giving these cards the same visual weight as the
-// Flights tab's deal-card photos instead of a plain text row.
-function venueCard(v, { icon, subtitle }){
+// are self-serve, see lib/opentable.js / lib/booking.js). Two possible
+// sources per card (see server.js buildRealRestaurantsForSettings/
+// buildRealStaysForSettings, and lib/yelp.js):
+//   v.source === 'yelp' — real star rating, review count, price and an
+//     actual photo of that specific venue, via Yelp's free Business
+//     Search API. Yelp's terms require attributing their data, so these
+//     cards link to the venue's real Yelp page (not Google Maps) and say
+//     so beneath the rating.
+//   v.source === 'osm'  — a real, currently-mapped name from
+//     OpenStreetMap with no rating/photo data available at that scale, so
+//     it gets a styled placeholder (category icon on a branded gradient)
+//     instead of a fabricated photo, and links to Google Maps.
+// This is the fallback path when Yelp isn't configured, or has nothing
+// for a given hometown.
+function venueCard(v, { icon, osmSubtitle }){
+  const isYelp = v.source === 'yelp';
+  const photoHtml = (isYelp && v.imageUrl)
+    ? `<img src="${v.imageUrl}" alt="" loading="lazy">`
+    : icon;
+
+  let meta;
+  if(isYelp){
+    const bits = [];
+    if(v.rating != null) bits.push(`★ ${v.rating}${v.reviewCount != null ? ` (${v.reviewCount})` : ''}`);
+    if(v.categoryLabel) bits.push(v.categoryLabel);
+    if(v.price) bits.push(v.price);
+    meta = (bits.join(' · ') || 'Yelp listing') + ' <span class="venue-source">· via Yelp</span>';
+  }else{
+    meta = osmSubtitle;
+  }
+
+  const linkUrl = isYelp ? v.url : v.mapUrl;
+  const linkLabel = isYelp ? 'View on Yelp →' : 'View on map →';
+
   return `
     <div class="venue-card">
-      <div class="venue-photo">${icon}</div>
+      <div class="venue-photo${isYelp && v.imageUrl ? ' has-photo' : ''}">${photoHtml}</div>
       <div class="venue-card-body">
         <div class="title">${v.title}</div>
-        <div class="meta">${subtitle}</div>
-        <a class="btn secondary small" href="${v.mapUrl}" target="_blank" rel="noopener">View on map →</a>
+        <div class="meta">${meta}</div>
+        <a class="btn secondary small" href="${linkUrl}" target="_blank" rel="noopener">${linkLabel}</a>
       </div>
     </div>
   `;
@@ -2642,12 +2672,16 @@ function restaurantsMarkup(result){
     return linkHtml || '<div class="empty">No restaurants found nearby yet.</div>';
   }
 
+  const sourceLine = restaurants[0]?.source === 'yelp'
+    ? 'Real ratings, reviews and photos via Yelp — not live availability, just honest options worth a look.'
+    : 'Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.';
+
   return `
     <div class="events-section-head" style="margin-bottom:12px;">
       <h3>🍽️ Real restaurants near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
-      <p>Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.</p>
+      <p>${sourceLine}</p>
     </div>
-    <div class="venue-grid">${restaurants.map(r => venueCard(r, { icon: '🍽️', subtitle: r.cuisine || 'Restaurant' })).join('')}</div>
+    <div class="venue-grid">${restaurants.map(r => venueCard(r, { icon: '🍽️', osmSubtitle: r.cuisine || 'Restaurant' })).join('')}</div>
     ${linkHtml}
   `;
 }
@@ -2683,12 +2717,16 @@ function stayMarkup(result){
     return linkHtml || '<div class="empty">No accommodation found nearby yet.</div>';
   }
 
+  const sourceLine = stays[0]?.source === 'yelp'
+    ? 'Real ratings, reviews and photos via Yelp — not live availability, just honest options worth a look.'
+    : 'Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.';
+
   return `
     <div class="events-section-head" style="margin-bottom:12px;">
       <h3>🏨 Real places to stay near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
-      <p>Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.</p>
+      <p>${sourceLine}</p>
     </div>
-    <div class="venue-grid">${stays.map(s => venueCard(s, { icon: '🏨', subtitle: s.stayType || 'Accommodation' })).join('')}</div>
+    <div class="venue-grid">${stays.map(s => venueCard(s, { icon: '🏨', osmSubtitle: s.stayType || 'Accommodation' })).join('')}</div>
     ${linkHtml}
   `;
 }

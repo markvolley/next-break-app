@@ -24,6 +24,8 @@ import { fetchAllRealFares, selectDeals, withBackfill, REAL_DESTINATIONS, INTERE
 import { findActivities } from './lib/viator.js';
 import { findFreeActivities, geocodeHometown } from './lib/activities.js';
 import { findEvents, buildEventUrl } from './lib/ticketmaster.js';
+import { findRestaurantLink } from './lib/opentable.js';
+import { findStayLink } from './lib/booking.js';
 import { getWeatherForDate } from './lib/weather.js';
 import { routeContext } from './lib/geo.js';
 import { fetchExchangeRates, DEST_CURRENCY_BY_IATA, DEST_CURRENCY_SYMBOLS } from './lib/fx.js';
@@ -73,6 +75,25 @@ const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY || '';
 // tracking link than Ticketmaster's own; see buildEventUrl in
 // lib/ticketmaster.js.
 const TICKETMASTER_AFFILIATE_LINK_PREFIX = process.env.TICKETMASTER_AFFILIATE_LINK_PREFIX || '';
+
+// OpenTable has no self-serve public API for restaurant listings (unlike
+// Ticketmaster's Discovery API) — see lib/opentable.js for the full
+// reasoning. This links straight to a real OpenTable AU search page for the
+// user's hometown instead, so there's no API key to configure at all. Once
+// accepted into OpenTable's own affiliate program (applied for via their
+// Partner Portal, not Impact), set this to whatever tracking link/prefix
+// they give you to make the link commission-tracked — leave unset and it's
+// simply a plain, untracked (but still real) link.
+const OPENTABLE_AFFILIATE_LINK_PREFIX = process.env.OPENTABLE_AFFILIATE_LINK_PREFIX || '';
+
+// Same story as OpenTable above, but for Booking.com (Staycation tab) — see
+// lib/booking.js. No API key needed for the link itself; once accepted into
+// Booking.com's Affiliate Partner Program (applied for via Awin, a
+// different/faster track than their Demand API), set this to whatever
+// tracking prefix Awin gives you. Airbnb has no equivalent self-serve
+// program at all (their public affiliate program closed in 2021), so
+// there's no Airbnb env var here — Booking.com is the only real option.
+const BOOKING_AFFILIATE_LINK_PREFIX = process.env.BOOKING_AFFILIATE_LINK_PREFIX || '';
 
 // Google Sign-In client ID. This is NOT a secret — it's meant to be public
 // and embedded in frontend JS (that's how Google Identity Services works),
@@ -1003,6 +1024,53 @@ async function handleGetActivities(req, res, userId) {
   sendJson(res, 200, { source, hometown: settings.hometown || '', activities });
 }
 
+// Hometown-based like activities, not break-based like deals/events — a
+// restaurant search link doesn't depend on the break's dates, so there's
+// nothing to look up per-break. No network call at all (see
+// lib/opentable.js), so this never needs caching either.
+function buildRestaurantForSettings(settings) {
+  if (!settings.hometown) return { source: 'not-configured', restaurant: null };
+  const restaurant = findRestaurantLink({
+    hometown: settings.hometown,
+    affiliatePrefix: OPENTABLE_AFFILIATE_LINK_PREFIX
+  });
+  return { source: 'real', restaurant };
+}
+
+async function handleGetRestaurants(req, res, userId) {
+  const settings = getSettings(userId);
+  const { source, restaurant } = buildRestaurantForSettings(settings);
+  sendJson(res, 200, { source, hometown: settings.hometown || '', restaurant });
+}
+
+// Break-based like events, not hometown-only like restaurants above — a
+// staycation is booked for a specific break's actual dates, so the link
+// needs breakKey to know which break's start/end to pre-fill. No network
+// call at all (see lib/booking.js), so no caching needed either.
+function buildStayForBreak(brk, settings) {
+  if (!settings.hometown) return { source: 'not-configured', stay: null };
+  const stay = findStayLink({
+    hometown: settings.hometown,
+    checkin: toISO(brk.start),
+    checkout: toISO(brk.end),
+    affiliatePrefix: BOOKING_AFFILIATE_LINK_PREFIX
+  });
+  return { source: 'real', stay };
+}
+
+async function handleGetStay(req, res, userId, query) {
+  const breakKey = query.get('breakKey');
+  if (!breakKey) return sendJson(res, 400, { error: 'breakKey is required' });
+
+  const settings = getSettings(userId);
+  const breaks = computeUpcomingBreaks(settings);
+  const brk = breaks.find(b => b.key === breakKey);
+  if (!brk) return sendJson(res, 404, { error: 'That break no longer matches your current roster.' });
+
+  const { source, stay } = buildStayForBreak(brk, settings);
+  sendJson(res, 200, { breakKey, source, hometown: settings.hometown || '', stay });
+}
+
 async function handleGetEvents(req, res, userId, query) {
   const breakKey = query.get('breakKey');
   if (!breakKey) return sendJson(res, 400, { error: 'breakKey is required' });
@@ -1547,6 +1615,8 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/breaks' && req.method === 'GET') return await handleGetBreaks(req, res, userId);
       if (pathname === '/api/deals' && req.method === 'GET') return await handleGetDeals(req, res, userId, searchParams);
       if (pathname === '/api/activities' && req.method === 'GET') return await handleGetActivities(req, res, userId);
+      if (pathname === '/api/restaurants' && req.method === 'GET') return await handleGetRestaurants(req, res, userId);
+      if (pathname === '/api/stay' && req.method === 'GET') return await handleGetStay(req, res, userId, searchParams);
       if (pathname === '/api/events' && req.method === 'GET') return await handleGetEvents(req, res, userId, searchParams);
       if (pathname === '/api/checkout' && req.method === 'POST') return await handleCheckout(req, res, userId);
       if (pathname === '/api/checkout/confirm' && req.method === 'GET') return await handleConfirmCheckout(req, res, userId, searchParams);
@@ -1590,6 +1660,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Travelpayouts real prices: ${TRAVELPAYOUTS_TOKEN ? 'configured' : 'NOT configured (set TRAVELPAYOUTS_TOKEN in .env — deals will show as "add your home airport" until then)'}`);
     console.log(`Viator activities: ${VIATOR_API_KEY ? 'configured' : 'NOT configured (set VIATOR_API_KEY in .env — things-to-do will show generic suggestions until then)'}`);
     console.log(`Ticketmaster events: ${TICKETMASTER_API_KEY ? 'configured' : 'NOT configured (set TICKETMASTER_API_KEY in .env — no events section will show until then)'}`);
+    console.log(`OpenTable restaurant links: always on (no API key needed) — affiliate tracking ${OPENTABLE_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set OPENTABLE_AFFILIATE_LINK_PREFIX in .env once your OpenTable affiliate application is approved)'}`);
+    console.log(`Booking.com staycation links: always on (no API key needed) — affiliate tracking ${BOOKING_AFFILIATE_LINK_PREFIX ? 'configured' : 'NOT configured (set BOOKING_AFFILIATE_LINK_PREFIX in .env once your Booking.com affiliate application via Awin is approved)'}`);
     console.log(`Google Sign-In: ${GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured (set GOOGLE_CLIENT_ID in .env — the Google button will be hidden until then)'}`);
     console.log(`Password reset emails: ${RESEND_API_KEY ? 'configured (Resend)' : 'NOT configured (set RESEND_API_KEY in .env — reset links will be logged here instead of emailed until then)'}`);
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);

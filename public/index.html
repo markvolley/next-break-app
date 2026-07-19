@@ -112,6 +112,24 @@
   .break-panel-header .count{font-size:clamp(26px,6vw,36px);font-weight:800;color:var(--accent2);line-height:1;font-family:var(--font-head);}
   .break-panel-header .count-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:2px;}
   .break-panel-body{padding:18px 22px 22px;}
+  /* Flights/Events/Restaurants/Stay used to all stack in one long scroll
+     inside break-panel-body — replaced with tabs so you can jump straight
+     to what you care about instead of scrolling past three sections to
+     reach the fourth. All four still fetch eagerly in the background (see
+     renderBreaksList), so switching tabs never shows a fresh loading
+     state — only the very first render of a break does. */
+  .panel-tabs{display:flex;gap:2px;margin:-4px -2px 16px;padding-bottom:0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .panel-tab{flex:0 0 auto;padding:9px 14px;border:none;background:transparent;color:var(--muted);font-weight:600;font-size:13.5px;font-family:inherit;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;}
+  .panel-tab:hover{color:var(--text);}
+  .panel-tab.active{color:var(--accent2);border-bottom-color:var(--accent2);}
+  /* Restaurants and Stay tabs are a single honest link-out card (real
+     search results, not fabricated listings) rather than a grid of cards
+     like Flights/Events — see restaurantsMarkup/stayMarkup. */
+  .link-out-card{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;flex-wrap:wrap;}
+  .link-out-icon{font-size:26px;flex:none;}
+  .link-out-body{flex:1;min-width:180px;}
+  .link-out-title{font-weight:700;font-size:15px;}
+  .link-out-sub{color:var(--muted);font-size:13px;margin-top:3px;line-height:1.4;}
   .badge{background:var(--accent);color:#101820;font-size:12px;font-weight:700;padding:4px 12px;border-radius:var(--radius-pill);}
   .badge.soon{background:var(--accent2);}
   .break-panel-body .disclaimer{margin:16px 0;}
@@ -1343,6 +1361,12 @@ async function showView(view){
   if(view === 'landing' && authState.loggedIn) view = 'dashboard';
 
   currentView = view;
+  // Every view switch starts scrolled to the top of the page. Without this,
+  // navigating away from a scrolled-down view (e.g. clicking "See deals" at
+  // the bottom of a long Setup form) leaves the new view's scroll position
+  // wherever the old one was, making the dashboard look like it opened
+  // halfway down instead of at the top.
+  window.scrollTo(0, 0);
   document.getElementById('landingHero').style.display = view==='landing' ? '' : 'none';
   // The header floats transparently on top of the full-bleed hero photo
   // only while on the landing view; every other view keeps the normal
@@ -1405,6 +1429,20 @@ const eventsLoading = {}; // breakKey -> true while a fetch is in flight
 // load-on-open, cache-per-break pattern as deals/events.
 const activitiesCache = {};
 const activitiesLoading = {};
+// Restaurant/stay link-outs (Restaurants and Stay tabs). Neither ever
+// needs a real network round-trip server-side (see lib/opentable.js /
+// lib/booking.js — both are pure URL builders), but the fetch itself is
+// still async over HTTP, so these get the same cache/loading-flag/render
+// pattern as everything else here.
+const restaurantsCache = {};
+const restaurantsLoading = {};
+const stayCache = {};
+const stayLoading = {};
+// Which tab is showing inside the currently selected break's panel.
+// Deliberately module-level (not per-break) so switching between break
+// pills keeps you on the tab you were looking at, rather than resetting to
+// Flights every time.
+let activeTab = 'flights';
 
 // Break keys are just date ranges (e.g. "2026-08-06_2026-08-12"), so
 // editing hometown or home airport in Setup doesn't change any of them —
@@ -1420,6 +1458,10 @@ function clearBreakCaches(){
   for(const k in eventsLoading) delete eventsLoading[k];
   for(const k in activitiesCache) delete activitiesCache[k];
   for(const k in activitiesLoading) delete activitiesLoading[k];
+  for(const k in restaurantsCache) delete restaurantsCache[k];
+  for(const k in restaurantsLoading) delete restaurantsLoading[k];
+  for(const k in stayCache) delete stayCache[k];
+  for(const k in stayLoading) delete stayLoading[k];
 }
 
 // ---------- trip interests (personalisation, logged-in users only) ----------
@@ -1903,6 +1945,37 @@ async function loadActivities(key){
   if(openBreakKey === key) renderBreaksList();
 }
 
+// Restaurants tab — hometown-only like activities (not break-specific), but
+// keyed by breakKey here too so it slots into the same per-break cache/load
+// pattern as everything else in this panel.
+async function loadRestaurants(key){
+  if(restaurantsLoading[key]) return;
+  restaurantsLoading[key] = true;
+  try{
+    const result = await api('/api/restaurants');
+    restaurantsCache[key] = result;
+  }catch(e){
+    restaurantsCache[key] = { error: e.message };
+  }
+  restaurantsLoading[key] = false;
+  if(openBreakKey === key) renderBreaksList();
+}
+
+// Stay tab — break-specific (uses the break's actual dates as checkin/
+// checkout), so unlike restaurants this does need breakKey server-side.
+async function loadStay(key){
+  if(stayLoading[key]) return;
+  stayLoading[key] = true;
+  try{
+    const result = await api('/api/stay?breakKey=' + encodeURIComponent(key));
+    stayCache[key] = result;
+  }catch(e){
+    stayCache[key] = { error: e.message };
+  }
+  stayLoading[key] = false;
+  if(openBreakKey === key) renderBreaksList();
+}
+
 // "Settled" meaning loaded (not still in flight) — undefined still means
 // "haven't checked yet," which should never be treated as empty, or the
 // activities fallback would flash on for a moment before real deals/events
@@ -1994,27 +2067,46 @@ function renderBreaksList(){
   }).join('');
 
   const cached = dealsCache[selected.key];
-  let bodyHtml = '';
-  if(!cached){
-    bodyHtml = '<div class="empty">Looking up options…</div>';
-  }else if(cached.error){
-    bodyHtml = '<div class="empty">Could not load options: ' + cached.error + '</div>';
-  }else{
-    bodyHtml = dealsMarkup(cached);
-  }
-  // Events are additive, not load-bearing — a missing/loading/errored
-  // result just means the section doesn't appear, same treatment as
-  // "not configured" (no error banner cluttering the deals view).
-  bodyHtml += eventsMarkup(eventsCache[selected.key]);
 
+  // Flights, Events, Restaurants and Stay are four separate tabs now
+  // (used to be stacked in one long scroll) — see the .panel-tabs CSS
+  // comment for why. All four still fetch eagerly below regardless of
+  // which tab is active, so switching tabs is instant instead of showing
+  // a fresh loading state every time.
+  let flightsHtml;
+  if(!cached){
+    flightsHtml = '<div class="empty">Looking up options…</div>';
+  }else if(cached.error){
+    flightsHtml = '<div class="empty">Could not load options: ' + cached.error + '</div>';
+  }else{
+    flightsHtml = dealsMarkup(cached);
+  }
+
+  let eventsHtml = eventsMarkup(eventsCache[selected.key]);
+  if(!eventsCache[selected.key]) eventsHtml = '<div class="empty">Looking up what\'s on…</div>';
   // Dead-end fallback: if this break genuinely has no flight deals and no
-  // events, don't leave "no fares found" as the only thing on screen.
-  // Fetch (once) and show real free/bookable things to do near home
-  // instead, so there's always something worth looking at.
+  // events, don't leave the Events tab empty. Fetch (once) and show real
+  // free/bookable things to do near home instead, so there's always
+  // something worth looking at.
   if(dealsSettledEmpty(cached) && eventsSettledEmpty(eventsCache[selected.key])){
     if(!activitiesCache[selected.key] && !activitiesLoading[selected.key]) loadActivities(selected.key);
-    bodyHtml += activitiesMarkup(activitiesCache[selected.key]);
+    eventsHtml += activitiesMarkup(activitiesCache[selected.key]);
   }
+
+  const restaurantsHtml = restaurantsMarkup(restaurantsCache[selected.key]);
+  const stayHtml = stayMarkup(stayCache[selected.key]);
+
+  const TABS = [
+    { key: 'flights', label: '✈️ Flights', html: flightsHtml },
+    { key: 'events', label: '🎟️ Events', html: eventsHtml },
+    { key: 'restaurants', label: '🍽️ Restaurants', html: restaurantsHtml },
+    { key: 'stay', label: '🏨 Stay', html: stayHtml }
+  ];
+  if(!TABS.some(t => t.key === activeTab)) activeTab = 'flights';
+  const tabsHtml = TABS.map(t =>
+    `<button class="panel-tab${t.key === activeTab ? ' active' : ''}" onclick="selectTab('${t.key}')">${t.label}</button>`
+  ).join('');
+  const activeTabHtml = TABS.find(t => t.key === activeTab).html;
 
   const rightHtml = isHeroSelected
     ? (() => { const c = nextBreakCountdown(selected); return `<div class="count-wrap"><div class="count">${c.big}</div><div class="count-label">${c.label}</div></div>`; })()
@@ -2031,21 +2123,33 @@ function renderBreaksList(){
         </div>
         <div class="right">${rightHtml}</div>
       </div>
-      <div class="break-panel-body">${bodyHtml}</div>
+      <div class="break-panel-body">
+        <div class="panel-tabs">${tabsHtml}</div>
+        <div class="panel-tab-content">${activeTabHtml}</div>
+      </div>
     </div>
   `;
 
   // Trigger the fetch here (not at the click site) so this covers both an
-  // explicit pill click (selectBreak below) and the implicit default
-  // selection above — loadDeals/loadEvents both guard against duplicate
-  // concurrent fetches, so calling them on every render is safe.
+  // explicit pill/tab click and the implicit default selection above —
+  // every load* function guards against duplicate concurrent fetches, so
+  // calling them on every render is safe. All four load regardless of
+  // activeTab so switching tabs never re-triggers a fresh loading state.
   if(!dealsCache[selected.key]) loadDeals(selected.key);
   if(!eventsCache[selected.key]) loadEvents(selected.key);
+  if(!restaurantsCache[selected.key]) loadRestaurants(selected.key);
+  if(!stayCache[selected.key]) loadStay(selected.key);
 }
 
 function selectBreak(key){
   if(openBreakKey === key) return;
   openBreakKey = key;
+  renderBreaksList();
+}
+
+function selectTab(tab){
+  if(activeTab === tab) return;
+  activeTab = tab;
   renderBreaksList();
 }
 
@@ -2462,6 +2566,54 @@ function activitiesMarkup(result){
         <p>${result.source === 'real' ? "Real, bookable activities near your hometown, in case you'd rather stay local this break." : "Free, real spots near your hometown (sourced from open map data), in case you'd rather stay local this break."}</p>
       </div>
       ${result.activities.map(activityRow).join('')}
+    </div>
+  `;
+}
+
+// ---------- Restaurants tab: real OpenTable search link-out ----------
+// Not a listing of individual restaurants (see lib/opentable.js for why —
+// OpenTable's real listings API needs its own partner approval, no
+// self-serve access) — one honest card linking to a real, working
+// OpenTable search page for the hometown, same "real search results, not
+// invented cards" pattern as the flight search-only cards.
+function restaurantsMarkup(result){
+  if(!result) return '<div class="empty">Loading…</div>';
+  if(result.error) return '<div class="empty">Could not load: ' + result.error + '</div>';
+  if(result.source === 'not-configured' || !result.restaurant){
+    return `<div class="disclaimer">🍽️ Add your hometown in <a href="#" onclick="showView('setup');return false;">Setup</a> to find restaurants near you.</div>`;
+  }
+  const r = result.restaurant;
+  return `
+    <div class="link-out-card">
+      <div class="link-out-icon">🍽️</div>
+      <div class="link-out-body">
+        <div class="link-out-title">Find a table in ${r.cityLabel}</div>
+        <div class="link-out-sub">Real OpenTable search results${r.matched ? '' : ' — search from there for your exact suburb'}, not availability we're guessing at.</div>
+      </div>
+      <a class="btn secondary small" href="${r.url}" target="_blank" rel="noopener sponsored">Search OpenTable →</a>
+    </div>
+  `;
+}
+
+// ---------- Stay tab: real Booking.com search link-out ----------
+// Same honest link-out pattern as Restaurants above, but break-specific —
+// pre-filled with this break's actual dates so it's a genuinely useful
+// starting point for a local staycation, not just a generic homepage link.
+function stayMarkup(result){
+  if(!result) return '<div class="empty">Loading…</div>';
+  if(result.error) return '<div class="empty">Could not load: ' + result.error + '</div>';
+  if(result.source === 'not-configured' || !result.stay){
+    return `<div class="disclaimer">🏨 Add your hometown in <a href="#" onclick="showView('setup');return false;">Setup</a> to find places to stay for a local getaway.</div>`;
+  }
+  const s = result.stay;
+  return `
+    <div class="link-out-card">
+      <div class="link-out-icon">🏨</div>
+      <div class="link-out-body">
+        <div class="link-out-title">Find a stay near ${s.cityLabel}</div>
+        <div class="link-out-sub">Real Booking.com search results${s.datesApplied ? ", pre-filled with this break's dates" : ''} — a local getaway without the flight.</div>
+      </div>
+      <a class="btn secondary small" href="${s.url}" target="_blank" rel="noopener sponsored">Search Booking.com →</a>
     </div>
   `;
 }

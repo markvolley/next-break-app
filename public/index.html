@@ -239,14 +239,9 @@
   .events-section-head{margin-bottom:8px;}
   .events-section-head h3{margin:0 0 3px;font-size:14px;font-weight:700;}
   .events-section-head p{margin:0;color:var(--muted);font-size:11.5px;}
-  .event-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
-  .event-row:last-child{border-bottom:none;}
-  .event-thumb{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:var(--panel2);}
-  .event-thumb.placeholder{display:flex;align-items:center;justify-content:center;font-size:22px;}
-  .event-row .info{min-width:0;flex:1;}
-  .event-row .title{font-weight:700;font-size:13.5px;}
-  .event-row .meta{color:var(--muted);font-size:12px;margin-top:2px;}
-  .event-row .price{color:var(--accent2);font-weight:700;font-size:12.5px;white-space:nowrap;}
+  /* Events and activities now render as .venue-card grid cards (same
+     component the Restaurants/Stay tabs use) instead of the old flat list
+     rows, so all four tabs share one consistent card design. */
   .links-row{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;}
   .links-row a{font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600;}
   .links-row a:hover{text-decoration:underline;}
@@ -2545,46 +2540,47 @@ function eventsMarkup(result){
         <h3>🎟️ On near home during this break</h3>
         <p>Real Ticketmaster listings, booked separately from your flight above.</p>
       </div>
-      ${events.map(eventRow).join('')}
+      <div class="venue-grid">${events.map(eventCard).join('')}</div>
     </div>
   `;
 }
 
 // ---------- fallback: free/bookable things to do near home ----------
 // Only ever rendered when a break has neither flight deals nor events (see
-// the trigger in renderBreaksList) — reuses the same .events-section /
-// .event-row styling as the Ticketmaster section above rather than
-// introducing a near-duplicate set of card styles. Two real sources, never
-// fabricated: Viator (bookable, source: 'real') when configured and it has
-// something for this hometown, else free public spots sourced live from
-// OpenStreetMap (source: 'free'). Renders nothing if even that comes back
-// empty — the "no fares found" disclaimer above already covers that case.
-function activityRow(a){
+// the trigger in renderBreaksList). Uses the same .venue-card grid design
+// as eventCard/venueCard so all four tabs (Flights excluded) share one
+// consistent card component rather than a near-duplicate set of styles.
+// Two real sources, never fabricated: Viator (bookable, source: 'real')
+// when configured and it has something for this hometown, else free
+// public spots sourced live from OpenStreetMap (source: 'free'). Renders
+// nothing if even that comes back empty — the "no fares found" disclaimer
+// above already covers that case.
+function activityCard(a){
   if(a.source === 'real'){
     const bits = [];
     if(a.duration) bits.push(a.duration);
     if(a.rating != null) bits.push(`★ ${a.rating}${a.reviewCount ? ` (${a.reviewCount})` : ''}`);
-    const price = (a.price != null) ? `<div class="price">${a.currency || ''} ${Math.round(a.price)}</div>` : '';
+    if(a.price != null) bits.push(`${a.currency || ''} ${Math.round(a.price)}`);
+    const photoHtml = a.image ? `<img src="${a.image}" alt="" loading="lazy">` : '🎫';
     return `
-      <div class="event-row">
-        ${a.image ? `<img class="event-thumb" src="${a.image}" alt="" loading="lazy">` : `<div class="event-thumb placeholder">🎫</div>`}
-        <div class="info">
+      <div class="venue-card">
+        <div class="venue-photo${a.image ? ' has-photo' : ''}">${photoHtml}</div>
+        <div class="venue-card-body">
           <div class="title">${a.title}</div>
           <div class="meta">${bits.join(' · ') || 'Bookable activity'}</div>
+          <a class="btn secondary small" href="${a.bookUrl}" target="_blank" rel="noopener sponsored">View & book →</a>
         </div>
-        ${price}
-        <a class="btn secondary small" href="${a.bookUrl}" target="_blank" rel="noopener sponsored">View & book →</a>
       </div>
     `;
   }
   return `
-    <div class="event-row">
-      <div class="event-thumb placeholder">📍</div>
-      <div class="info">
+    <div class="venue-card">
+      <div class="venue-photo">📍</div>
+      <div class="venue-card-body">
         <div class="title">${a.title}</div>
         <div class="meta">${a.category || 'Local spot'} · Free</div>
+        <a class="btn secondary small" href="${a.mapUrl}" target="_blank" rel="noopener">View on map →</a>
       </div>
-      <a class="btn secondary small" href="${a.mapUrl}" target="_blank" rel="noopener">View on map →</a>
     </div>
   `;
 }
@@ -2598,7 +2594,7 @@ function activitiesMarkup(result){
         <h3>🧭 Nothing on for these dates? Here's what's near home</h3>
         <p>${result.source === 'real' ? "Real, bookable activities near your hometown, in case you'd rather stay local this break." : "Free, real spots near your hometown (sourced from open map data), in case you'd rather stay local this break."}</p>
       </div>
-      ${result.activities.map(activityRow).join('')}
+      <div class="venue-grid">${result.activities.map(activityCard).join('')}</div>
     </div>
   `;
 }
@@ -2777,27 +2773,25 @@ function dedupeEventOccurrences(events){
   }).sort((a, b) => a.localDate.localeCompare(b.localDate));
 }
 
-function eventRow(e){
+function eventCard(e){
   const dateLabel = e.dateCount > 1
     ? `From ${fmtEventDateOnly(e.localDate)} · ${e.dateCount} dates`
     : fmtEventDateTime(e.localDate, e.localTime);
-  const metaParts = [dateLabel];
-  if(e.venueName) metaParts.push(e.venueName);
   const priceLabel = (e.priceMin != null)
     ? `${e.currency || ''} ${Math.round(e.priceMin)}${(e.priceMax != null && e.priceMax !== e.priceMin) ? '–' + Math.round(e.priceMax) : ''}`
-    : '';
-  const thumb = e.imageUrl
-    ? `<img class="event-thumb" src="${e.imageUrl}" alt="" loading="lazy">`
-    : `<div class="event-thumb placeholder">🎟️</div>`;
+    : null;
+  const metaBits = [dateLabel];
+  if(priceLabel) metaBits.push(priceLabel);
+  const photoHtml = e.imageUrl ? `<img src="${e.imageUrl}" alt="" loading="lazy">` : '🎟️';
   return `
-    <div class="event-row">
-      ${thumb}
-      <div class="info">
+    <div class="venue-card">
+      <div class="venue-photo${e.imageUrl ? ' has-photo' : ''}">${photoHtml}</div>
+      <div class="venue-card-body">
         <div class="title">${e.title}</div>
-        <div class="meta">${metaParts.join(' · ')}</div>
+        ${e.venueName ? `<div class="venue-address">${e.venueName}</div>` : ''}
+        <div class="meta">${metaBits.join(' · ')}</div>
+        <a class="btn secondary small" href="${e.url}" target="_blank" rel="noopener sponsored" onclick='trackEventClick(${jsAttr(e.id)}, ${jsAttr(e.title)})'>Tickets →</a>
       </div>
-      ${priceLabel ? `<div class="price">${priceLabel}</div>` : ''}
-      <a class="btn secondary small" href="${e.url}" target="_blank" rel="noopener sponsored" onclick='trackEventClick(${jsAttr(e.id)}, ${jsAttr(e.title)})'>Tickets →</a>
     </div>
   `;
 }

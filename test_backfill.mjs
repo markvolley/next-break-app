@@ -4,7 +4,7 @@
 //   node test_backfill.mjs
 
 import assert from 'node:assert';
-import { buildLiveSearchUrl, pickBackfillDestinations, withBackfill, BACKFILL_MINIMUM, REAL_DESTINATIONS, fetchAllRealFares } from './lib/travelpayouts.js';
+import { buildLiveSearchUrl, pickBackfillDestinations, withBackfill, DEALS_PER_CATEGORY, REAL_DESTINATIONS, fetchAllRealFares } from './lib/travelpayouts.js';
 
 function brk(key, start, end) {
   return { key, start: new Date(start), end: new Date(end) };
@@ -72,32 +72,38 @@ console.log('Test 3 passed: pickBackfillDestinations excludes already-used desti
 }
 console.log('Test 4 passed: backfill picks are seeded/deterministic per break, vary across breaks');
 
-// 5. withBackfill is a no-op once the real picks already meet the minimum.
+// 5. withBackfill is a no-op once every category already has
+// DEALS_PER_CATEGORY (2) real fares -- 6 real fares, 2 per category.
 {
   const b = brk('test-key-2', '2026-08-01', '2026-08-08');
   const picked = [
     { source: 'real', iata: 'MEL', domestic: true, price: 200 },
-    { source: 'real', iata: 'DPS', domestic: false, price: 300 },
-    { source: 'real', iata: 'TYO', domestic: false, price: 900 }
+    { source: 'real', iata: 'SYD', domestic: true, price: 150 },
+    { source: 'real', iata: 'DPS', domestic: false, region: 'SEA', price: 300 },
+    { source: 'real', iata: 'HKT', domestic: false, region: 'SEA', price: 250 },
+    { source: 'real', iata: 'TYO', domestic: false, region: null, price: 900 },
+    { source: 'real', iata: 'LAX', domestic: false, region: null, price: 700 }
   ];
   const result = withBackfill(picked, { origin: 'PER', brk: b, marker: '999' });
-  assert.strictEqual(result.length, 3);
-  assert.strictEqual(result, picked, 'should return the same array reference untouched when already at minimum');
+  assert.strictEqual(result.length, 6);
+  assert.strictEqual(result, picked, 'should return the same array reference untouched when every category is already full');
 }
-console.log('Test 5 passed: withBackfill does nothing once the minimum is already met');
+console.log('Test 5 passed: withBackfill does nothing once every category already has its 2 real fares');
 
-// 6. withBackfill tops up a short list to BACKFILL_MINIMUM with no-price
-// search-only cards, each carrying a live-search bookUrl built from the
-// break's real dates -- never an off-date, never a fabricated price.
+// 6. withBackfill tops up a short list so EVERY category reaches
+// DEALS_PER_CATEGORY, not just the total count -- 1 real domestic fare
+// means domestic needs 1 more, SEA needs 2, international needs 2 (5
+// backfill cards, 6 total), each carrying a live-search bookUrl built from
+// the break's real dates -- never an off-date, never a fabricated price.
 {
   const b = brk('test-key-3', '2026-08-01', '2026-08-08');
   const picked = [{ source: 'real', iata: 'MEL', domestic: true, price: 200 }];
   const result = withBackfill(picked, { origin: 'PER', brk: b, marker: 'MK1', currency: 'AUD' });
-  assert.strictEqual(result.length, BACKFILL_MINIMUM);
-  assert.strictEqual(result[0].iata, 'MEL', 'the real fare should stay first, untouched');
+  assert.strictEqual(result.length, DEALS_PER_CATEGORY * 3, '2 per category x 3 categories = 6');
+  assert.ok(result.some(d => d.iata === 'MEL' && d.source === 'real'), 'the real fare should still be present, untouched');
 
-  const backfilled = result.slice(1);
-  assert.strictEqual(backfilled.length, BACKFILL_MINIMUM - 1);
+  const backfilled = result.filter(d => d.iata !== 'MEL');
+  assert.strictEqual(backfilled.length, 5, 'domestic needs 1 more, SEA needs 2, international needs 2');
   for (const d of backfilled) {
     assert.strictEqual(d.source, 'search-only');
     assert.strictEqual(d.price, null, 'a backfill card must never show a price');
@@ -109,16 +115,19 @@ console.log('Test 5 passed: withBackfill does nothing once the minimum is alread
     assert.ok(d.bookUrl.includes('return_date=2026-08-08'), "must use the break's real end date");
     assert.ok(d.bookUrl.includes('marker=MK1'));
   }
+  const byCategory = { domestic: 0, sea: 0, intl: 0 };
+  for (const d of result) byCategory[d.domestic ? 'domestic' : d.region === 'SEA' ? 'sea' : 'intl']++;
+  assert.deepStrictEqual(byCategory, { domestic: 2, sea: 2, intl: 2 }, 'every category should end up with exactly 2');
 }
-console.log('Test 6 passed: withBackfill tops up to the minimum with dated, marked, no-price live-search cards');
+console.log('Test 6 passed: withBackfill tops up every short category individually, never just the total');
 
 // 7. withBackfill never fabricates more destinations than actually exist in
 // the curated pool (defensive, not expected to bite in practice given the
 // pool size, but should degrade gracefully rather than throw or pad).
 {
   const b = brk('test-key-4', '2026-08-01', '2026-08-08');
-  const hugeMinimum = REAL_DESTINATIONS.length + 50;
-  const result = withBackfill([], { origin: 'PER', brk: b, marker: 'MK2', minimum: hugeMinimum });
+  const hugePerCategory = REAL_DESTINATIONS.length + 50;
+  const result = withBackfill([], { origin: 'PER', brk: b, marker: 'MK2', perCategory: hugePerCategory });
   assert.ok(result.length <= REAL_DESTINATIONS.length, 'should never exceed the size of the real destination pool');
   const iatas = result.map(d => d.iata);
   assert.strictEqual(new Set(iatas).size, iatas.length, 'no destination should repeat even when asked for more than exist');
@@ -164,44 +173,49 @@ function categoryOf(d) {
   return 'intl';
 }
 
-// 10. With zero real fares, the 3 backfill cards themselves follow the
-// same domestic -> SEA -> international order used for real fares.
+// 10. With zero real fares, the 6 backfill cards themselves follow the
+// same domestic -> SEA -> international order used for real fares, 2 of
+// each category.
 {
   const b = brk('order-key-1', '2026-08-01', '2026-08-08');
   const result = withBackfill([], { origin: 'PER', brk: b, marker: 'MK3' });
-  assert.strictEqual(result.length, 3);
-  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'sea', 'intl'], 'backfill-only cards should be ordered domestic, SEA, international');
+  assert.strictEqual(result.length, 6);
+  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'domestic', 'sea', 'sea', 'intl', 'intl'], 'backfill-only cards should be ordered domestic, domestic, SEA, SEA, international, international');
   assert.ok(result.every(d => d.source === 'search-only'));
+  assert.strictEqual(new Set(result.map(d => d.iata)).size, 6, 'no destination should repeat');
 }
-console.log('Test 10 passed: an all-backfill list is ordered domestic, SEA, international');
+console.log('Test 10 passed: an all-backfill list is 2 domestic + 2 SEA + 2 international, in that order');
 
-// 11. A real domestic fare plus 2 backfill cards -- the backfill should
-// fill in the *missing* categories (SEA, international), not repeat
-// domestic, and the combined list stays in domestic/SEA/intl order.
+// 11. A real domestic fare plus backfill for everything else -- backfill
+// should fill the *missing* slots (1 more domestic, 2 SEA, 2
+// international), never repeat the real fare's destination, and the
+// combined list stays in domestic/SEA/intl order.
 {
   const b = brk('order-key-2', '2026-08-01', '2026-08-08');
   const picked = [{ source: 'real', iata: 'MEL', domestic: true, region: null, price: 200 }];
   const result = withBackfill(picked, { origin: 'PER', brk: b, marker: 'MK4' });
-  assert.strictEqual(result.length, 3);
-  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'sea', 'intl']);
-  assert.strictEqual(result[0].iata, 'MEL', 'the real domestic fare should be the domestic slot');
-  assert.strictEqual(result[0].source, 'real');
-  assert.ok(result[1].source === 'search-only' && result[2].source === 'search-only', 'the missing SEA/international slots should be backfilled');
+  assert.strictEqual(result.length, 6);
+  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'domestic', 'sea', 'sea', 'intl', 'intl']);
+  const mel = result.find(d => d.iata === 'MEL');
+  assert.ok(mel && mel.source === 'real', 'the real domestic fare should still be present');
+  assert.strictEqual(result.filter(d => d.source === 'search-only').length, 5, 'the other 5 slots should all be backfilled');
+  assert.strictEqual(new Set(result.map(d => d.iata)).size, 6, 'no destination should repeat, including MEL');
 }
-console.log('Test 11 passed: backfill fills the categories a real fare is missing, in order');
+console.log('Test 11 passed: backfill fills every category to 2, including topping up the real fare\'s own category');
 
-// 12. A real SEA-only fare (domestic missing) -- the final list must still
-// read domestic-first even though the real fare isn't in the first slot
-// of `picked`, proving the ordering is enforced on the merged result, not
-// just assumed from insertion order.
+// 12. A real SEA-only fare (domestic missing entirely) -- the final list
+// must still read domestic-first even though the real fare isn't in the
+// first slot of `picked`, proving the ordering is enforced on the merged
+// result, not just assumed from insertion order.
 {
   const b = brk('order-key-3', '2026-08-01', '2026-08-08');
   const picked = [{ source: 'real', iata: 'DPS', domestic: false, region: 'SEA', price: 300 }];
   const result = withBackfill(picked, { origin: 'PER', brk: b, marker: 'MK5' });
-  assert.strictEqual(result.length, 3);
-  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'sea', 'intl'], 'domestic must come first regardless of where the real fare landed in `picked`');
-  assert.strictEqual(result[1].iata, 'DPS', 'the real SEA fare should end up in the SEA slot after sorting');
-  assert.strictEqual(result[1].source, 'real');
+  assert.strictEqual(result.length, 6);
+  assert.deepStrictEqual(result.map(categoryOf), ['domestic', 'domestic', 'sea', 'sea', 'intl', 'intl'], 'domestic must come first regardless of where the real fare landed in `picked`');
+  const dps = result.find(d => d.iata === 'DPS');
+  assert.ok(dps && dps.source === 'real', 'the real SEA fare should still be present, unmodified');
+  assert.strictEqual(categoryOf(dps), 'sea', 'and still correctly categorised as SEA after merging');
 }
 console.log('Test 12 passed: final ordering is enforced regardless of which category the real fare came from');
 

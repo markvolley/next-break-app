@@ -365,14 +365,14 @@ async function buildDealsForBreak(brk, settings, { profile = null } = {}) {
 
   const realSource = cached.fares.length ? 'real' : 'no-results';
 
-  // Guarantees a domestic/SEA/international mix first, then backfills with
-  // any other real fares found (see selectDeals) up to this cap — raised
-  // from the old fixed 3-slot limit so a break with plenty of real options
-  // actually shows them instead of throwing extras away. If real fares are
-  // still short of BACKFILL_MINIMUM after that, withBackfill tops the list
-  // up with no-price "optional destination" cards that link to a live
-  // Aviasales search for the break's real dates, so nobody ever lands on
-  // an empty deals list — see lib/travelpayouts.js for why this is still
+  // Always shows exactly 6: 2 domestic, 2 SEA, 2 other-international — see
+  // DEALS_PER_CATEGORY in lib/travelpayouts.js. selectDeals fills each
+  // category's 2 slots from real fares first (cheapest/best-matching
+  // within that category, never borrowing a slot from a different
+  // category); withBackfill then tops up any category still short with
+  // no-price "optional destination" cards that link to a live Aviasales
+  // search for the break's real dates, so nobody ever lands on an empty or
+  // lopsided deals list — see lib/travelpayouts.js for why this is still
   // commissionable and never fabricates a price.
   const deals = withBackfill(
     selectDeals(cached.fares, { limit: 6, profile }),

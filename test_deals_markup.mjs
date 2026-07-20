@@ -41,6 +41,7 @@ function extractFunction(src, name) {
 }
 
 const searchOnlyCardMarkupSrc = extractFunction(html, 'searchOnlyCardMarkup');
+const interleaveByCategorySrc = extractFunction(html, 'interleaveByCategory');
 const dealsMarkupSrc = extractFunction(html, 'dealsMarkup');
 
 // Minimal stand-ins for dealsMarkup's few real dependencies -- not trying
@@ -58,22 +59,23 @@ const stubs = `
 const factory = new Function(`
   ${stubs}
   ${searchOnlyCardMarkupSrc}
+  ${interleaveByCategorySrc}
   ${dealsMarkupSrc}
-  return { dealsMarkup, searchOnlyCardMarkup };
+  return { dealsMarkup, searchOnlyCardMarkup, interleaveByCategory };
 `);
-const { dealsMarkup } = factory();
+const { dealsMarkup, interleaveByCategory } = factory();
 
-function backfillDeal(iata) {
+function backfillDeal(iata, { domestic = false, region = null } = {}) {
   return {
-    source: 'search-only', name: iata, iata, blurb: 'blurb', domestic: false, region: null,
+    source: 'search-only', name: iata, iata, blurb: 'blurb', domestic, region,
     tags: [], price: null, currency: 'AUD', airline: null, flightNumber: null,
     departureAt: null, returnAt: null, nights: null, isQuickTrip: false,
     bookUrl: `https://search.aviasales.com/flights/?destination_iata=${iata}`
   };
 }
-function realDeal(iata) {
+function realDeal(iata, { domestic = true, region = null } = {}) {
   return {
-    source: 'real', name: iata, iata, blurb: 'blurb', domestic: true, region: null, tags: [],
+    source: 'real', name: iata, iata, blurb: 'blurb', domestic, region, tags: [],
     price: 250, currency: 'AUD', airline: 'XX', flightNumber: '1', departureAt: '2026-08-01T08:00:00',
     returnAt: '2026-08-05T08:00:00', transfers: 0, nights: 4, isQuickTrip: false, bookUrl: 'https://x'
   };
@@ -124,5 +126,42 @@ console.log('Test 3 passed: real fares mixed with backfill cards both render cor
   assert.ok(!html.includes('No fares found yet'));
 }
 console.log('Test 4 passed: not-configured still shows the setup prompt, not the dead-end message');
+
+// 5. interleaveByCategory reorders a backend-order list (domestic,
+// domestic, SEA, SEA, intl, intl) into row-major order (domestic, SEA,
+// intl, domestic, SEA, intl) so the 3-column grid reads as two clean rows
+// of one-each, matching the layout Mark asked for.
+{
+  const backendOrder = [
+    realDeal('SYD'), realDeal('MEL'),
+    realDeal('DPS', { domestic: false, region: 'SEA' }), backfillDeal('BKK', { region: 'SEA' }),
+    backfillDeal('LON'), backfillDeal('DXB')
+  ];
+  const reordered = interleaveByCategory(backendOrder).map(d => d.iata);
+  assert.deepStrictEqual(reordered, ['SYD', 'DPS', 'LON', 'MEL', 'BKK', 'DXB'], 'row 1 should be domestic/SEA/intl, row 2 the same');
+}
+console.log('Test 5 passed: interleaveByCategory produces row-major domestic/SEA/intl order');
+
+// 6. dealsMarkup itself renders cards in that same row-major order (not
+// just the helper in isolation) — checked via each card's position in the
+// rendered HTML string.
+{
+  const result = {
+    source: 'real',
+    deals: [
+      realDeal('SYD'), realDeal('MEL'),
+      realDeal('DPS', { domestic: false, region: 'SEA' }), backfillDeal('BKK', { region: 'SEA' }),
+      backfillDeal('LON'), backfillDeal('DXB')
+    ],
+    currencySymbol: 'A$', fetchedAt: new Date().toISOString(), personalized: false
+  };
+  const html = dealsMarkup(result);
+  const positions = ['SYD', 'DPS', 'LON', 'MEL', 'BKK', 'DXB'].map(iata => html.indexOf(iata));
+  assert.ok(positions.every(p => p !== -1), 'every destination should actually render');
+  for (let i = 0; i < positions.length - 1; i++) {
+    assert.ok(positions[i] < positions[i + 1], `expected ${['SYD', 'DPS', 'LON', 'MEL', 'BKK', 'DXB'][i]} to render before ${['SYD', 'DPS', 'LON', 'MEL', 'BKK', 'DXB'][i + 1]}`);
+  }
+}
+console.log('Test 6 passed: dealsMarkup renders cards in row-major domestic/SEA/intl order end to end');
 
 console.log('ALL dealsMarkup TESTS PASSED');

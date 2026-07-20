@@ -181,7 +181,12 @@
   .badge{background:var(--accent);color:#101820;font-size:12px;font-weight:700;padding:4px 12px;border-radius:var(--radius-pill);}
   .badge.soon{background:var(--accent2);}
   .break-panel-body .disclaimer{margin:16px 0;}
-  .deals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
+  /* Fixed 3 columns (not auto-fill) so the always-exactly-6 deals list
+     (see DEALS_PER_CATEGORY in lib/travelpayouts.js) reliably forms 2 rows
+     of 3 — row 1 domestic/SEA/international, row 2 the same — rather than
+     however many columns happened to fit at a given width. See
+     interleaveByCategory() for the matching row-major reorder. */
+  .deals-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
   /* overflow is intentionally NOT hidden on .deal-card — the "Quick trip"
      tooltip inside .deal-tags-row needs to be able to pop outside the
      card's box when it opens near the top. Rounding + clipping the photo
@@ -2777,6 +2782,32 @@ function searchOnlyCardMarkup(d){
   `;
 }
 
+// Reorders a deals list (which arrives from the backend grouped by
+// category — domestic, domestic, SEA, SEA, intl, intl, see
+// DEALS_PER_CATEGORY/withBackfill in lib/travelpayouts.js) into row-major
+// order for the 3-column .deals-grid: domestic/SEA/international, then
+// domestic/SEA/international again — so row 1 and row 2 each read as one
+// of each category, rather than row 1 being both domestic picks plus the
+// first SEA one. Written generically (round-robin across whichever
+// categories are actually present) so it degrades gracefully if a category
+// ever has more or fewer than 2 entries, rather than assuming exactly 6.
+function interleaveByCategory(deals){
+  const buckets = { domestic: [], sea: [], intl: [] };
+  for(const d of deals){
+    const cat = d.domestic ? 'domestic' : (d.region === 'SEA' ? 'sea' : 'intl');
+    buckets[cat].push(d);
+  }
+  const order = ['domestic', 'sea', 'intl'];
+  const maxLen = Math.max(buckets.domestic.length, buckets.sea.length, buckets.intl.length);
+  const result = [];
+  for(let i = 0; i < maxLen; i++){
+    for(const cat of order){
+      if(buckets[cat][i]) result.push(buckets[cat][i]);
+    }
+  }
+  return result;
+}
+
 function dealsMarkup(result){
   const sym = result.currencySymbol;
 
@@ -2795,7 +2826,7 @@ function dealsMarkup(result){
     return `<div class="disclaimer">No fares found yet for this route and these dates. Prices come from recent real searches, so this can change. It's worth checking back closer to your break.</div>`;
   }
 
-  const dealsHtml = result.deals.map(d => {
+  const dealsHtml = interleaveByCategory(result.deals).map(d => {
     if(d.source === 'search-only') return searchOnlyCardMarkup(d);
     const photo = destPhotoUrl(d.iata);
     const stops = d.transfers === 0 ? 'non-stop' : d.transfers + ' stop' + (d.transfers===1?'':'s');

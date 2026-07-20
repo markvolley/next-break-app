@@ -2677,12 +2677,12 @@ function restaurantsMarkup(result){
     : 'Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.';
 
   return `
-    <div class="events-section-head" style="margin-bottom:12px;">
+    ${linkHtml}
+    <div class="events-section-head" style="margin:16px 0 12px;">
       <h3>🍽️ Real restaurants near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
       <p>${sourceLine}</p>
     </div>
     <div class="venue-grid">${restaurants.map(r => venueCard(r, { icon: '🍽️', osmSubtitle: r.cuisine || 'Restaurant' })).join('')}</div>
-    ${linkHtml}
   `;
 }
 
@@ -2722,12 +2722,12 @@ function stayMarkup(result){
     : 'Sourced from OpenStreetMap — not live availability, just honest, currently-mapped options worth a look.';
 
   return `
-    <div class="events-section-head" style="margin-bottom:12px;">
+    ${linkHtml}
+    <div class="events-section-head" style="margin:16px 0 12px;">
       <h3>🏨 Real places to stay near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
       <p>${sourceLine}</p>
     </div>
     <div class="venue-grid">${stays.map(s => venueCard(s, { icon: '🏨', osmSubtitle: s.stayType || 'Accommodation' })).join('')}</div>
-    ${linkHtml}
   `;
 }
 

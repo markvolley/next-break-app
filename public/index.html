@@ -127,6 +127,13 @@
      "this is navigation" pattern than the earlier horizontal pill row,
      per direct feedback that the tabs still weren't obvious enough. */
   .panel-tabs{display:flex;gap:4px;margin:-4px -4px 20px;padding:4px;background:rgba(244,238,227,0.05);border:1px solid rgba(244,238,227,0.14);border-radius:16px;}
+  /* Five tabs (Flights/Events/Restaurants/Stay/Notes) is tight on a phone
+     at the icon-over-label font sizes tuned for four — shrink slightly
+     rather than letting labels wrap or overflow. */
+  @media (max-width: 420px){
+    .panel-tab-icon{font-size:16px;}
+    .panel-tab-label{font-size:10px;}
+  }
   .panel-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:11px 4px 10px;border:none;border-radius:12px;background:transparent;color:var(--muted);font-family:inherit;cursor:pointer;transition:background .15s,color .15s;}
   .panel-tab-icon{font-size:19px;line-height:1;}
   .panel-tab-label{font-size:11.5px;font-weight:800;letter-spacing:.2px;white-space:nowrap;}
@@ -149,7 +156,15 @@
      flight destinations without a curated photo) rather than an actual
      photo of that specific venue, which would need a paid Places API. */
   .venue-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;}
-  .venue-card{border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;display:flex;flex-direction:column;}
+  .venue-card{position:relative;border:1px solid var(--border);border-radius:16px;background:var(--panel2);overflow:hidden;display:flex;flex-direction:column;}
+  /* Save-for-later star, overlaid on the photo/icon corner of any venue or
+     event card — logged-in only (see authState.loggedIn checks around
+     venueCard/eventCard), since a shortlist tied to an anonymous device id
+     would just vanish the next time someone cleared their browser. */
+  .venue-save-btn{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(16,24,32,0.55);color:#F4EEE3;font-size:15px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;z-index:2;}
+  .venue-save-btn:hover{background:rgba(16,24,32,0.78);}
+  .venue-save-btn.saved{color:var(--accent);}
+  .venue-save-btn:disabled{opacity:.6;cursor:default;}
   .venue-photo{height:92px;display:flex;align-items:center;justify-content:center;font-size:32px;background:linear-gradient(135deg, rgba(245,176,76,0.22), rgba(16,24,32,0.96));flex:none;}
   /* Yelp-sourced cards (v.source==='yelp') swap the icon for a real photo
      of that specific venue — the gradient background still shows through
@@ -242,6 +257,19 @@
   /* Events and activities now render as .venue-card grid cards (same
      component the Restaurants/Stay tabs use) instead of the old flat list
      rows, so all four tabs share one consistent card design. */
+
+  /* ---------- Notes tab (per-break notes + checklist, logged-in only) ---------- */
+  .notes-textarea{width:100%;min-height:90px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.5;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  .checklist{list-style:none;margin:14px 0 0;padding:0;}
+  .checklist li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .checklist li:last-child{border-bottom:none;}
+  .checklist li input[type="checkbox"]{width:18px;height:18px;flex:none;}
+  .checklist li span{flex:1;font-size:13.5px;}
+  .checklist li.done span{color:var(--muted);text-decoration:line-through;}
+  .checklist-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;}
+  .checklist-remove:hover{color:var(--text);}
+  .checklist-add-row{display:flex;gap:8px;margin-top:12px;}
+  .checklist-add-row input{flex:1;}
   .links-row{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;}
   .links-row a{font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600;}
   .links-row a:hover{text-decoration:underline;}
@@ -740,6 +768,31 @@
         <button class="btn btn-block-mobile" id="saveInterestsBtn" onclick="saveInterests()">Save interests</button>
       </div>
     </div>
+
+    <div class="panel">
+      <h2>Price-drop alerts</h2>
+      <p class="hint" style="margin-top:0;">Get an email when a real fare for your next break comes in cheaper than the last price we showed you. Needs your hometown, home airport, and real prices to be set up first (see Setup).</p>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;color:var(--text);font-size:13px;margin:12px 0 0;">
+        <input type="checkbox" id="profilePriceAlerts" style="margin-top:3px;width:auto;" onchange="togglePriceAlerts(this.checked)">
+        <span>Email me when a cheaper real fare shows up for my next break</span>
+      </label>
+      <div class="auth-success" id="priceAlertsMsg" style="color:var(--accent);font-size:12.5px;margin-top:10px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Share your upcoming breaks</h2>
+      <p class="hint" style="margin-top:0;">A read-only link showing just your break dates — nothing else — so a roster-mate or partner can see when you're off without needing their own account.</p>
+      <button class="btn secondary small" id="shareLinkBtn" onclick="setUpShareLink()">🔗 Get share link</button>
+      <div id="shareLinkBox" class="calendar-box" style="display:none;">
+        <label style="margin-top:0;">Shareable link</label>
+        <input type="text" id="shareLinkUrl" readonly onclick="this.select()">
+        <div class="hint" style="margin-top:8px;">Stays synced automatically as your roster changes — no need to re-share.</div>
+        <div style="margin-top:12px;">
+          <button class="btn secondary small" onclick="copyShareUrl()">Copy link</button>
+        </div>
+        <div class="auth-success" id="shareLinkCopyMsg" style="color:var(--accent);font-size:12.5px;margin-top:10px;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- STATS VIEW (logged-in users only) -->
@@ -765,6 +818,18 @@
       <h2>Destinations you've clicked into</h2>
       <ul class="stat-list" id="statTopDest"></ul>
       <div class="empty" id="statTopDestEmpty" style="display:none;">Click into a flight option and it'll show up here.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Saved places</h2>
+      <div class="hint" style="margin-top:0;">Restaurants, stays and events you've starred, so a good find doesn't disappear when you close the tab.</div>
+      <div id="savedVenuesList" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Past breaks</h2>
+      <div class="hint" style="margin-top:0;">Breaks that have already happened, worked out from your roster pattern, along with anything you clicked into around that time.</div>
+      <div id="pastBreaksList" style="margin-top:14px;"></div>
     </div>
   </div>
 
@@ -834,7 +899,53 @@ async function refreshAuthState(){
     authState = { loggedIn: false, email: null, googleClientId: null };
   }
   renderAccountArea();
+  await loadSavedVenueIds();
   return authState;
+}
+
+// Populates savedVenueIds so venue/event cards can render the correct
+// filled/unfilled star without a fresh fetch every time a tab re-renders.
+// Cleared (not fetched) for a logged-out visitor, same as every other
+// account-only cache in this file.
+async function loadSavedVenueIds(){
+  if(!authState.loggedIn){
+    savedVenueIds = new Set();
+    return;
+  }
+  try{
+    const data = await api('/api/saved-venues');
+    savedVenueIds = new Set((data.items || []).map(v => v.id));
+  }catch(e){
+    savedVenueIds = new Set();
+  }
+}
+
+// Adds/removes one venue from the shortlist and flips the calling star
+// button's state in place — no full re-render needed for the toggle
+// itself, just the one button. See lib/store.js venueIdFor for why the id
+// is a plain `type|title|url` composite rather than a hash.
+async function toggleSavedVenue(type, title, url, subtitle, imageUrl, btn){
+  if(!authState.loggedIn) return;
+  const id = type + '|' + title + '|' + (url || '');
+  const isSaved = savedVenueIds.has(id);
+  btn.disabled = true;
+  try{
+    if(isSaved){
+      await api('/api/saved-venues?id=' + encodeURIComponent(id), { method: 'DELETE' });
+      savedVenueIds.delete(id);
+    }else{
+      await api('/api/saved-venues', { method: 'POST', body: JSON.stringify({ type, title, url, subtitle, imageUrl }) });
+      savedVenueIds.add(id);
+    }
+    btn.classList.toggle('saved', !isSaved);
+    btn.textContent = !isSaved ? '★' : '☆';
+    btn.title = !isSaved ? 'Saved — click to remove' : 'Save for later';
+  }catch(e){
+    // Quiet failure — the star just stays as it was, no need for a banner
+    // over what's a small, low-stakes convenience action.
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 function renderAccountArea(){
@@ -1156,10 +1267,59 @@ async function fillProfileForm(){
   try{
     const settings = await api('/api/settings');
     selectedInterests = new Set(settings.interests || []);
+    document.getElementById('profilePriceAlerts').checked = !!settings.priceAlerts;
   }catch(e){
     selectedInterests = new Set();
   }
   renderProfileInterestChips();
+
+  // Share link box starts collapsed each time Profile is opened — no need
+  // to fetch it eagerly, "Get share link" generates/fetches it on demand.
+  document.getElementById('shareLinkBox').style.display = 'none';
+}
+
+async function togglePriceAlerts(checked){
+  const msgEl = document.getElementById('priceAlertsMsg');
+  try{
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ priceAlerts: checked }) });
+    msgEl.textContent = checked ? 'Price alerts on.' : 'Price alerts off.';
+    setTimeout(() => { msgEl.textContent = ''; }, 2500);
+  }catch(e){
+    msgEl.textContent = 'Could not save: ' + e.message;
+  }
+}
+
+async function setUpShareLink(){
+  const btn = document.getElementById('shareLinkBtn');
+  setBtnBusy(btn, true, 'Generating…');
+  try{
+    const result = await api('/api/share-link');
+    document.getElementById('shareLinkUrl').value = result.shareUrl;
+    document.getElementById('shareLinkBox').style.display = '';
+    document.getElementById('shareLinkCopyMsg').textContent = '';
+  }catch(e){
+    showBanner('error', 'Could not set up share link: ' + e.message);
+  }finally{
+    setBtnBusy(btn, false);
+  }
+}
+
+function copyShareUrl(){
+  const input = document.getElementById('shareLinkUrl');
+  input.select();
+  const msg = document.getElementById('shareLinkCopyMsg');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(input.value).then(() => {
+      msg.textContent = 'Copied!';
+      setTimeout(() => { msg.textContent = ''; }, 2000);
+    }).catch(() => {
+      msg.textContent = 'Could not copy. Select the link above and copy manually.';
+    });
+  }else{
+    document.execCommand('copy');
+    msg.textContent = 'Copied!';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  }
 }
 
 function renderProfileInterestChips(){
@@ -1429,7 +1589,11 @@ async function showView(view){
   if(view==='setup' || view==='landing') await fillSetupForm();
   if(view==='dashboard') await renderDashboard();
   if(view==='profile') await fillProfileForm();
-  if(view==='stats') await renderStats();
+  if(view==='stats'){
+    await renderStats();
+    await renderSavedVenuesPanel();
+    await renderPastBreaksPanel();
+  }
 }
 
 function scrollToSetup(){
@@ -1466,11 +1630,23 @@ const restaurantsCache = {};
 const restaurantsLoading = {};
 const stayCache = {};
 const stayLoading = {};
+// Per-break notes/checklist (Notes tab, logged-in only) — same
+// cache/loading-flag pattern as everything else here.
+const notesCache = {};
+const notesLoading = {};
 // Which tab is showing inside the currently selected break's panel.
 // Deliberately module-level (not per-break) so switching between break
 // pills keeps you on the tab you were looking at, rather than resetting to
 // Flights every time.
 let activeTab = 'flights';
+
+// Ids of the current account's saved venues (see lib/store.js
+// venueIdFor — `${type}|${title}|${url}`), used to render the save ☆/★
+// star correctly on every restaurant/stay/event card. Populated on login
+// (see refreshAuthState) and kept in sync locally as the user
+// saves/unsaves, so re-rendering a tab never needs a fresh fetch just to
+// know which stars should be filled.
+let savedVenueIds = new Set();
 
 // Break keys are just date ranges (e.g. "2026-08-06_2026-08-12"), so
 // editing hometown or home airport in Setup doesn't change any of them —
@@ -1490,6 +1666,10 @@ function clearBreakCaches(){
   for(const k in restaurantsLoading) delete restaurantsLoading[k];
   for(const k in stayCache) delete stayCache[k];
   for(const k in stayLoading) delete stayLoading[k];
+  // Notes/checklist deliberately NOT cleared here — they're tied to the
+  // account + break dates (see lib/store.js getBreakNotes), not to
+  // hometown/origin, so an edit in Setup shouldn't wipe a saved packing
+  // list for a break whose dates haven't changed.
 }
 
 // ---------- trip interests (personalisation, logged-in users only) ----------
@@ -1602,6 +1782,18 @@ function jsAttr(value){
   return JSON.stringify(value == null ? '' : value)
     .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;');
+}
+
+// HTML-escapes free text before interpolating it into markup — used for
+// the Notes tab's own textarea/checklist text, which (unlike most other
+// strings rendered in this file) is arbitrary free-form user input rather
+// than a real venue/event name from a trusted API, so it's much more
+// likely to contain characters that would otherwise break the surrounding
+// markup (e.g. "cost < $500" silently vanishing, or a stray closing tag).
+function escapeHtml(str){
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ---------- feedback bubble ----------
@@ -1855,6 +2047,70 @@ async function renderStats(){
   }
 }
 
+const SAVED_VENUE_TYPE_ICON = { restaurant: '🍽️', stay: '🏨', event: '🎟️' };
+
+async function renderSavedVenuesPanel(){
+  const el = document.getElementById('savedVenuesList');
+  let data;
+  try{
+    data = await api('/api/saved-venues');
+  }catch(e){
+    el.innerHTML = '<div class="empty">Could not load saved places: ' + e.message + '</div>';
+    return;
+  }
+  savedVenueIds = new Set(data.items.map(v => v.id));
+  if(!data.items.length){
+    el.innerHTML = '<div class="empty">Nothing saved yet — tap the ☆ on any restaurant, stay or event card to save it here.</div>';
+    return;
+  }
+  el.innerHTML = `<ul class="stat-list">${data.items.map(v => `
+    <li>
+      <span>${SAVED_VENUE_TYPE_ICON[v.type] || '📍'} ${escapeHtml(v.title)}${v.subtitle ? ` <span class="muted">· ${escapeHtml(v.subtitle)}</span>` : ''}</span>
+      <span style="display:flex;gap:8px;align-items:center;">
+        ${v.url ? `<a class="btn secondary small" href="${v.url}" target="_blank" rel="noopener">Open →</a>` : ''}
+        <button type="button" class="checklist-remove" title="Remove" onclick='unsaveVenueFromPanel(${jsAttr(v.id)})'>✕</button>
+      </span>
+    </li>
+  `).join('')}</ul>`;
+}
+
+async function unsaveVenueFromPanel(id){
+  try{
+    await api('/api/saved-venues?id=' + encodeURIComponent(id), { method: 'DELETE' });
+    savedVenueIds.delete(id);
+    await renderSavedVenuesPanel();
+  }catch(e){
+    showBanner('error', 'Could not remove: ' + e.message);
+  }
+}
+
+async function renderPastBreaksPanel(){
+  const el = document.getElementById('pastBreaksList');
+  let data;
+  try{
+    data = await api('/api/past-breaks');
+  }catch(e){
+    el.innerHTML = '<div class="empty">Could not load past breaks: ' + e.message + '</div>';
+    return;
+  }
+  if(!data.pastBreaks.length){
+    el.innerHTML = '<div class="empty">Nothing here yet — this fills in once a break from your roster pattern has actually passed.</div>';
+    return;
+  }
+  const CLICK_ICON = { flight: '✈️', event: '🎟️' };
+  el.innerHTML = data.pastBreaks.map(b => `
+    <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="font-weight:700;font-size:14px;">${fmtDateOnly(b.start)} → ${fmtDateOnly(b.end)}</div>
+      <div class="hint" style="margin-top:2px;">${b.duration} day${b.duration===1?'':'s'} off</div>
+      ${b.clicks.length ? `
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+          ${b.clicks.map(c => `<span class="stat-pill">${CLICK_ICON[c.type] || ''} ${escapeHtml(c.name || c.type)}</span>`).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
 // ---------- account promo (dashboard, anonymous users only) ----------
 const ACCOUNT_PROMO_DISMISSED_KEY = 'nextbreak_account_promo_dismissed';
 
@@ -2004,6 +2260,71 @@ async function loadStay(key){
   if(openBreakKey === key) renderBreaksList();
 }
 
+// Notes tab — logged-in only, so this never even fetches for a signed-out
+// visitor (same "no durable account, nothing to load" reasoning as Stats).
+async function loadBreakNotes(key){
+  if(!authState.loggedIn || notesLoading[key]) return;
+  notesLoading[key] = true;
+  try{
+    const result = await api('/api/break-notes?breakKey=' + encodeURIComponent(key));
+    notesCache[key] = result;
+  }catch(e){
+    notesCache[key] = { error: e.message };
+  }
+  notesLoading[key] = false;
+  if(openBreakKey === key) renderBreaksList();
+}
+
+async function saveNotesText(breakKey){
+  const textarea = document.getElementById('notesText-' + breakKey);
+  const msgEl = document.getElementById('notesSaveMsg-' + breakKey);
+  const checklist = (notesCache[breakKey] && notesCache[breakKey].checklist) || [];
+  try{
+    const updated = await api('/api/break-notes', { method: 'PUT', body: JSON.stringify({ breakKey, notes: textarea.value, checklist }) });
+    notesCache[breakKey] = updated;
+    if(msgEl){ msgEl.textContent = 'Saved.'; setTimeout(() => { msgEl.textContent = ''; }, 2000); }
+  }catch(e){
+    if(msgEl) msgEl.textContent = 'Could not save: ' + e.message;
+  }
+}
+
+async function addChecklistItem(breakKey){
+  const input = document.getElementById('checklistNewItem-' + breakKey);
+  const text = (input.value || '').trim();
+  if(!text) return;
+  const current = notesCache[breakKey] || { notes: '', checklist: [] };
+  const checklist = [...current.checklist, { id: 'c' + Date.now() + Math.floor(Math.random() * 1000), text, done: false }];
+  try{
+    notesCache[breakKey] = await api('/api/break-notes', { method: 'PUT', body: JSON.stringify({ breakKey, notes: current.notes, checklist }) });
+    input.value = '';
+    renderBreaksList();
+  }catch(e){
+    showBanner('error', 'Could not add item: ' + e.message);
+  }
+}
+
+async function toggleChecklistItem(breakKey, itemId, done){
+  const current = notesCache[breakKey] || { notes: '', checklist: [] };
+  const checklist = current.checklist.map(c => c.id === itemId ? { ...c, done } : c);
+  try{
+    notesCache[breakKey] = await api('/api/break-notes', { method: 'PUT', body: JSON.stringify({ breakKey, notes: current.notes, checklist }) });
+  }catch(e){
+    // Leave it as-is on failure rather than fighting the checkbox the user
+    // just clicked — a full re-render would otherwise flip it back.
+  }
+}
+
+async function removeChecklistItem(breakKey, itemId){
+  const current = notesCache[breakKey] || { notes: '', checklist: [] };
+  const checklist = current.checklist.filter(c => c.id !== itemId);
+  try{
+    notesCache[breakKey] = await api('/api/break-notes', { method: 'PUT', body: JSON.stringify({ breakKey, notes: current.notes, checklist }) });
+    renderBreaksList();
+  }catch(e){
+    showBanner('error', 'Could not remove item: ' + e.message);
+  }
+}
+
 // "Settled" meaning loaded (not still in flight) — undefined still means
 // "haven't checked yet," which should never be treated as empty, or the
 // activities fallback would flash on for a moment before real deals/events
@@ -2123,12 +2444,14 @@ function renderBreaksList(){
 
   const restaurantsHtml = restaurantsMarkup(restaurantsCache[selected.key]);
   const stayHtml = stayMarkup(stayCache[selected.key]);
+  const notesHtml = notesMarkup(notesCache[selected.key], selected.key);
 
   const TABS = [
     { key: 'flights', icon: '✈️', label: 'Flights', html: flightsHtml },
     { key: 'events', icon: '🎟️', label: 'Events', html: eventsHtml },
     { key: 'restaurants', icon: '🍽️', label: 'Restaurants', html: restaurantsHtml },
-    { key: 'stay', icon: '🏨', label: 'Stay', html: stayHtml }
+    { key: 'stay', icon: '🏨', label: 'Stay', html: stayHtml },
+    { key: 'notes', icon: '📝', label: 'Notes', html: notesHtml }
   ];
   if(!TABS.some(t => t.key === activeTab)) activeTab = 'flights';
   const tabsHtml = TABS.map(t =>
@@ -2167,6 +2490,7 @@ function renderBreaksList(){
   if(!eventsCache[selected.key]) loadEvents(selected.key);
   if(!restaurantsCache[selected.key]) loadRestaurants(selected.key);
   if(!stayCache[selected.key]) loadStay(selected.key);
+  if(authState.loggedIn && !notesCache[selected.key]) loadBreakNotes(selected.key);
 }
 
 function selectBreak(key){
@@ -2616,7 +2940,19 @@ function activitiesMarkup(result){
 //     instead of a fabricated photo, and links to Google Maps.
 // This is the fallback path when Yelp isn't configured, or has nothing
 // for a given hometown.
-function venueCard(v, { icon, osmSubtitle }){
+// Shared save/★ star button for venue and event cards — logged-in only
+// (see toggleSavedVenue). subtitle/imageUrl are best-effort context stored
+// alongside the save so the Saved places list on My Stats has something to
+// show beyond a bare title; url is what makes the save id stable (see
+// lib/store.js venueIdFor).
+function saveButtonMarkup(type, title, url, subtitle, imageUrl){
+  if(!authState.loggedIn) return '';
+  const id = type + '|' + title + '|' + (url || '');
+  const isSaved = savedVenueIds.has(id);
+  return `<button type="button" class="venue-save-btn${isSaved ? ' saved' : ''}" title="${isSaved ? 'Saved — click to remove' : 'Save for later'}" onclick='toggleSavedVenue(${jsAttr(type)}, ${jsAttr(title)}, ${jsAttr(url)}, ${jsAttr(subtitle)}, ${jsAttr(imageUrl)}, this)'>${isSaved ? '★' : '☆'}</button>`;
+}
+
+function venueCard(v, { icon, osmSubtitle, type }){
   const isYelp = v.source === 'yelp';
   const photoHtml = (isYelp && v.imageUrl)
     ? `<img src="${v.imageUrl}" alt="" loading="lazy">`
@@ -2643,6 +2979,7 @@ function venueCard(v, { icon, osmSubtitle }){
 
   return `
     <div class="venue-card">
+      ${saveButtonMarkup(type, v.title, linkUrl, osmSubtitle, isYelp ? v.imageUrl : null)}
       <div class="venue-photo${isYelp && v.imageUrl ? ' has-photo' : ''}">${photoHtml}</div>
       <div class="venue-card-body">
         <div class="title">${v.title}</div>
@@ -2691,7 +3028,7 @@ function restaurantsMarkup(result){
       <h3>🍽️ Real restaurants near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
       <p>${sourceLine}</p>
     </div>
-    <div class="venue-grid">${restaurants.map(r => venueCard(r, { icon: '🍽️', osmSubtitle: r.cuisine || 'Restaurant' })).join('')}</div>
+    <div class="venue-grid">${restaurants.map(r => venueCard(r, { icon: '🍽️', osmSubtitle: r.cuisine || 'Restaurant', type: 'restaurant' })).join('')}</div>
   `;
 }
 
@@ -2736,7 +3073,42 @@ function stayMarkup(result){
       <h3>🏨 Real places to stay near ${result.searchLink ? result.searchLink.cityLabel : 'you'}</h3>
       <p>${sourceLine}</p>
     </div>
-    <div class="venue-grid">${stays.map(s => venueCard(s, { icon: '🏨', osmSubtitle: s.stayType || 'Accommodation' })).join('')}</div>
+    <div class="venue-grid">${stays.map(s => venueCard(s, { icon: '🏨', osmSubtitle: s.stayType || 'Accommodation', type: 'stay' })).join('')}</div>
+  `;
+}
+
+// ---------- Notes tab (per-break notes + checklist, logged-in only) ----------
+function notesMarkup(result, breakKey){
+  if(!authState.loggedIn){
+    return `<div class="disclaimer">📝 <a href="#" onclick="openAuthModal('signup');return false;">Create a free account</a> to add notes and a checklist for this break.</div>`;
+  }
+  if(!result) return '<div class="empty">Loading…</div>';
+  if(result.error) return '<div class="empty">Could not load notes: ' + result.error + '</div>';
+
+  const checklist = result.checklist || [];
+  const itemsHtml = checklist.map(c => `
+    <li class="${c.done ? 'done' : ''}">
+      <input type="checkbox" ${c.done ? 'checked' : ''} onchange='toggleChecklistItem(${jsAttr(breakKey)}, ${jsAttr(c.id)}, this.checked)'>
+      <span>${escapeHtml(c.text)}</span>
+      <button type="button" class="checklist-remove" title="Remove" onclick='removeChecklistItem(${jsAttr(breakKey)}, ${jsAttr(c.id)})'>✕</button>
+    </li>
+  `).join('');
+
+  return `
+    <div class="events-section-head" style="margin:0 0 12px;">
+      <h3>📝 Notes for this break</h3>
+      <p>Just for you — nothing here is shared with anyone else.</p>
+    </div>
+    <textarea class="notes-textarea" id="notesText-${breakKey}" placeholder="Anything to remember — bookings to make, things to sort before you go…">${escapeHtml(result.notes || '')}</textarea>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px;">
+      <button class="btn secondary small" onclick='saveNotesText(${jsAttr(breakKey)})'>Save notes</button>
+      <span class="auth-success" id="notesSaveMsg-${breakKey}" style="color:var(--accent);font-size:12.5px;"></span>
+    </div>
+    <ul class="checklist" id="checklistList-${breakKey}">${itemsHtml}</ul>
+    <div class="checklist-add-row">
+      <input type="text" id="checklistNewItem-${breakKey}" placeholder="Add a to-do…" maxlength="200" onkeydown='if(event.key==="Enter"){addChecklistItem(${jsAttr(breakKey)});}'>
+      <button class="btn secondary small" onclick='addChecklistItem(${jsAttr(breakKey)})'>Add</button>
+    </div>
   `;
 }
 
@@ -2785,6 +3157,7 @@ function eventCard(e){
   const photoHtml = e.imageUrl ? `<img src="${e.imageUrl}" alt="" loading="lazy">` : '🎟️';
   return `
     <div class="venue-card">
+      ${saveButtonMarkup('event', e.title, e.url, e.venueName || dateLabel, e.imageUrl)}
       <div class="venue-photo${e.imageUrl ? ' has-photo' : ''}">${photoHtml}</div>
       <div class="venue-card-body">
         <div class="title">${e.title}</div>

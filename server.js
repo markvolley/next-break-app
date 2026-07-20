@@ -10,14 +10,18 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-import { computeUpcomingBreaks, breakStatus, toISO, addDays, CURRENCY_SYMBOLS } from './lib/deals.js';
+import { computeUpcomingBreaks, computePastBreaks, breakStatus, toISO, addDays, CURRENCY_SYMBOLS } from './lib/deals.js';
 import {
   getSettings, saveSettings, isUnlocked, markUnlocked, getUnlockRecord,
   getAccount, createAccount, upsertGoogleAccount, createSession, getSessionEmail, deleteSession, migrateUser,
   setAccountPassword, deleteAllSessionsForEmail, createPasswordReset, getPasswordResetEmail, deletePasswordReset,
   setAccountProfile, listAccounts, recordDealClick, listDealClicks, recordEventClick, listEventClicks, recordFeedback, listFeedback, recordVisit, getVisitsByDay,
   getCalendarTokenForUser, setCalendarToken, getUserIdForCalendarToken, _dataFilePath,
-  getOrCreateUnsubscribeToken, getEmailByUnsubscribeToken, recordDigestSent, hasDigestSent
+  getOrCreateUnsubscribeToken, getEmailByUnsubscribeToken, recordDigestSent, hasDigestSent,
+  listSavedVenues, saveVenue, removeSavedVenue,
+  getBreakNotes, saveBreakNotes,
+  getOrCreateShareToken, getEmailForShareToken,
+  getPriceBaseline, setPriceBaseline
 } from './lib/store.js';
 import { createCheckoutSession, retrieveCheckoutSession, verifyWebhookSignature } from './lib/stripeClient.js';
 import { fetchAllRealFares, selectDeals, withBackfill, REAL_DESTINATIONS, INTEREST_TAGS } from './lib/travelpayouts.js';
@@ -32,7 +36,7 @@ import { routeContext } from './lib/geo.js';
 import { fetchExchangeRates, DEST_CURRENCY_BY_IATA, DEST_CURRENCY_SYMBOLS } from './lib/fx.js';
 import { hashPassword, verifyPassword, createSessionToken, createResetToken, createCalendarToken, isValidEmail } from './lib/auth.js';
 import { verifyGoogleIdToken } from './lib/googleAuth.js';
-import { sendPasswordResetEmail, sendBreakDigestEmail } from './lib/email.js';
+import { sendPasswordResetEmail, sendBreakDigestEmail, sendPriceAlertEmail } from './lib/email.js';
 import { buildBreaksICS } from './lib/calendar.js';
 import { pickEligibleBreak } from './lib/digest.js';
 
@@ -148,6 +152,15 @@ const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB decoded
 const AVATAR_MIME_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 
 // ---------- tiny helpers ----------
+// Used only by the handful of hand-built HTML pages this server returns
+// directly (unsubscribe confirmations, the roster-share page) — everything
+// else is JSON rendered by the frontend, which escapes on its own.
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function sendJson(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
@@ -857,6 +870,134 @@ async function handlePutProfile(req, res) {
   sendJson(res, 200, { email, displayName: updated?.displayName || '', avatarUrl: updated?.avatarUrl || null, marketingOptIn: !!updated?.marketingOptIn });
 }
 
+// ---------- saved venues (shortlist) ----------
+// Account-only, same reasoning as Profile/Stats above — a shortlist tied
+// to an anonymous device id would just vanish the next time someone
+// cleared their browser, which defeats the point of "saving" something.
+const SAVED_VENUE_TYPES = ['restaurant', 'stay', 'event'];
+
+async function handleGetSavedVenues(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  sendJson(res, 200, { items: listSavedVenues(email) });
+}
+
+async function handlePostSavedVenue(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  const body = await readJsonBody(req);
+  if (!SAVED_VENUE_TYPES.includes(body.type)) return sendJson(res, 400, { error: 'Invalid type.' });
+  if (!body.title || typeof body.title !== 'string') return sendJson(res, 400, { error: 'title is required.' });
+  const items = saveVenue(email, {
+    type: body.type,
+    title: String(body.title).slice(0, 200),
+    subtitle: typeof body.subtitle === 'string' ? body.subtitle.slice(0, 200) : null,
+    url: typeof body.url === 'string' ? body.url.slice(0, 1000) : null,
+    imageUrl: typeof body.imageUrl === 'string' ? body.imageUrl.slice(0, 1000) : null
+  });
+  sendJson(res, 200, { items });
+}
+
+async function handleDeleteSavedVenue(req, res, query) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  const id = query.get('id');
+  if (!id) return sendJson(res, 400, { error: 'id is required.' });
+  sendJson(res, 200, { items: removeSavedVenue(email, id) });
+}
+
+// ---------- per-break notes + checklist ----------
+async function handleGetBreakNotes(req, res, query) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  const breakKey = query.get('breakKey');
+  if (!breakKey) return sendJson(res, 400, { error: 'breakKey is required' });
+  sendJson(res, 200, getBreakNotes(email, breakKey));
+}
+
+async function handlePutBreakNotes(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  const body = await readJsonBody(req);
+  if (!body.breakKey) return sendJson(res, 400, { error: 'breakKey is required' });
+  const updated = saveBreakNotes(email, body.breakKey, { notes: body.notes, checklist: body.checklist });
+  sendJson(res, 200, updated);
+}
+
+// ---------- roster-mate share link ----------
+// A read-only public page (see handleSharePage below) showing just dates —
+// no fares, no personal info beyond an optional display name — so it's
+// safe to hand to a roster-mate or partner who doesn't have their own
+// account. Same unguessable-token-is-the-auth model as the calendar feed.
+async function handleGetShareLink(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  const token = getOrCreateShareToken(email);
+  const origin = originFromRequest(req);
+  sendJson(res, 200, { shareUrl: `${origin}/share/${token}` });
+}
+
+async function handleSharePage(req, res, token) {
+  const email = getEmailForShareToken(token);
+  if (!email) {
+    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end('<p style="font-family:sans-serif;padding:40px;text-align:center;">That share link looks invalid.</p>');
+  }
+  const settings = getSettings(email);
+  const account = getAccount(email);
+  const breaks = computeUpcomingBreaks(settings).map(b => ({ ...b, ...breakStatus(b) }));
+  const displayName = escapeHtml(account?.displayName || 'A Next Break user');
+
+  const rows = breaks.length
+    ? breaks.map(b => `
+        <li style="padding:12px 0;border-bottom:1px solid #e8e8e8;">
+          <div style="font-weight:700;">${toISO(b.start)} &rarr; ${toISO(b.end)}</div>
+          <div style="color:#666;font-size:13px;margin-top:2px;">${b.duration} day${b.duration === 1 ? '' : 's'} off${b.isOngoing ? ' · happening now' : ` · ${b.daysUntil} day${b.daysUntil === 1 ? '' : 's'} to go`}</div>
+        </li>
+      `).join('')
+    : '<p style="color:#666;">No upcoming breaks set yet.</p>';
+
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${displayName}'s upcoming breaks — Next Break</title></head>
+  <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#101820;max-width:480px;margin:40px auto;padding:0 20px;">
+    <h1 style="font-size:20px;">${displayName}'s upcoming breaks</h1>
+    <p style="color:#666;font-size:13px;">Shared from Next Break — just dates, nothing else.</p>
+    <ul style="list-style:none;padding:0;margin:20px 0;">${rows}</ul>
+    <p style="margin-top:30px;"><a href="${PUBLIC_BASE_URL}" style="color:#F5B04C;text-decoration:none;font-weight:700;">Plan your own breaks on Next Break &rarr;</a></p>
+  </body></html>`);
+}
+
+// ---------- past breaks (account history) ----------
+// Only ever built from data we actually recorded: computePastBreaks'
+// real, dated breaks from the roster, plus real deal/event clicks logged
+// in that window — never a claim about where someone actually went, since
+// we have no way of knowing whether a click became a completed booking.
+async function handleGetPastBreaks(req, res) {
+  const email = requireSessionEmail(req, res);
+  if (!email) return;
+  const settings = getSettings(email);
+  const pastBreaks = computePastBreaks(settings, { limit: 6 });
+
+  const key = email.toLowerCase();
+  const myDealClicks = listDealClicks().filter(c => c.email === key);
+  const myEventClicks = listEventClicks().filter(c => c.email === key);
+
+  const result = pastBreaks.map(b => {
+    // A window around the break's own dates, biased earlier — booking
+    // clicks typically happen in the lead-up to a break, not during it.
+    const windowStart = addDays(b.start, -14);
+    const windowEnd = addDays(b.end, 3);
+    const inWindow = c => { const d = new Date(c.at); return d >= windowStart && d <= windowEnd; };
+    const clicks = [
+      ...myDealClicks.filter(inWindow).map(c => ({ type: 'flight', name: c.name, at: c.at })),
+      ...myEventClicks.filter(inWindow).map(c => ({ type: 'event', name: c.name, at: c.at }))
+    ].sort((a, b2) => new Date(a.at) - new Date(b2.at));
+    return { key: b.key, start: toISO(b.start), end: toISO(b.end), duration: b.duration, clicks };
+  });
+
+  sendJson(res, 200, { pastBreaks: result });
+}
+
 // ---------- route handlers ----------
 async function handleGetSettings(req, res, userId) {
   sendJson(res, 200, getSettings(userId));
@@ -864,7 +1005,7 @@ async function handleGetSettings(req, res, userId) {
 
 async function handlePutSettings(req, res, userId) {
   const body = await readJsonBody(req);
-  const allowed = ['hometown', 'originAirport', 'currency', 'rosterMode', 'pattern', 'manualBreaks', 'interests'];
+  const allowed = ['hometown', 'originAirport', 'currency', 'rosterMode', 'pattern', 'manualBreaks', 'interests', 'priceAlerts'];
   const patch = {};
   for (const k of allowed) if (k in body) patch[k] = body[k];
   if (typeof patch.originAirport === 'string') patch.originAirport = patch.originAirport.trim().toUpperCase();
@@ -873,6 +1014,7 @@ async function handlePutSettings(req, res, userId) {
     // request shouldn't end up steering deal selection.
     patch.interests = patch.interests.filter(t => INTEREST_TAGS.includes(t));
   }
+  if ('priceAlerts' in patch) patch.priceAlerts = !!patch.priceAlerts;
   const updated = saveSettings(userId, patch);
   sendJson(res, 200, updated);
 }
@@ -1270,14 +1412,107 @@ async function maybeSendDigestForAccount(email) {
   if (!sent) console.error(`[digest] send failed for ${email}, break ${brk.key}`);
 }
 
+// ---------- price-drop alert ----------
+// Opt-in separately from the digest above (settings.priceAlerts, not
+// account.marketingOptIn) — same daily-sweep shape as runDigestSweep, but
+// iterates every account and checks each one's own settings, since the
+// opt-in lives per-userId (like interests) rather than per-account.
+async function runPriceAlertSweep() {
+  if (!RESEND_API_KEY) return;
+
+  const accounts = listAccounts();
+  for (const account of accounts) {
+    const settings = getSettings(account.email);
+    if (!settings.priceAlerts) continue;
+    try {
+      await maybeSendPriceAlertForAccount(account.email);
+    } catch (e) {
+      console.error(`[price-alert] sweep failed for ${account.email}:`, e.message);
+    }
+  }
+}
+
+// Floor under how often the SAME break can trigger a repeat email, even if
+// the sweep runs more than once in that window — independent of the
+// sweep's own interval so a faster sweep cadence still can't spam.
+const PRICE_ALERT_COOLDOWN_MS = 20 * 60 * 60 * 1000; // ~20h
+
+async function maybeSendPriceAlertForAccount(email) {
+  const settings = getSettings(email);
+  // Needs a real, priced fare to compare against — no origin airport or no
+  // Travelpayouts token configured means there's nothing genuine to check.
+  if (!settings.hometown || !settings.originAirport || !TRAVELPAYOUTS_TOKEN) return;
+
+  const breaks = computeUpcomingBreaks(settings);
+  if (!breaks.length) return;
+  const brk = breaks[0]; // only the very next break — a price months out isn't urgent yet
+
+  const { deals } = await buildDealsForBreak(brk, settings);
+  const realPriced = (deals || []).filter(d => d.source === 'real' && d.price != null);
+  if (!realPriced.length) return;
+
+  const cheapest = realPriced.reduce((min, d) => (d.price < min.price ? d : min), realPriced[0]);
+  const baseline = getPriceBaseline(email, brk.key);
+
+  if (!baseline) {
+    // First time we've ever seen a real price for this break — record it
+    // silently. There's nothing to compare it to yet, so it isn't a "drop."
+    setPriceBaseline(email, brk.key, { price: cheapest.price, iata: cheapest.iata, name: cheapest.name });
+    return;
+  }
+
+  const droppedEnough = cheapest.price < baseline.price;
+  const cooledDown = !baseline.lastAlertAt || (Date.now() - new Date(baseline.lastAlertAt).getTime()) > PRICE_ALERT_COOLDOWN_MS;
+  if (!droppedEnough || !cooledDown) {
+    // Still refresh the stored price if it moved (even upward), so the
+    // NEXT genuine drop is measured against what's actually true now — but
+    // leave lastAlertAt alone since no email is going out this time.
+    if (cheapest.price !== baseline.price) {
+      setPriceBaseline(email, brk.key, { price: cheapest.price, iata: cheapest.iata, name: cheapest.name, lastAlertAt: baseline.lastAlertAt });
+    }
+    return;
+  }
+
+  const token = getOrCreateUnsubscribeToken(email);
+  const sent = await sendPriceAlertEmail({
+    to: email,
+    destinationName: cheapest.name,
+    oldPrice: baseline.price,
+    newPrice: cheapest.price,
+    currencySymbol: CURRENCY_SYMBOLS[settings.currency] || 'A$',
+    breakStart: toISO(brk.start),
+    breakEnd: toISO(brk.end),
+    bookUrl: cheapest.bookUrl,
+    unsubscribeUrl: `${PUBLIC_BASE_URL}/api/unsubscribe?token=${token}&kind=price`,
+    apiKey: RESEND_API_KEY,
+    fromAddress: EMAIL_FROM
+  });
+
+  setPriceBaseline(email, brk.key, {
+    price: cheapest.price, iata: cheapest.iata, name: cheapest.name,
+    lastAlertAt: sent ? new Date().toISOString() : baseline.lastAlertAt
+  });
+  if (!sent) console.error(`[price-alert] send failed for ${email}, break ${brk.key}`);
+}
+
 async function handleUnsubscribe(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const token = url.searchParams.get('token');
+  const kind = url.searchParams.get('kind') || 'digest';
   const email = token && getEmailByUnsubscribeToken(token);
 
   if (!email) {
     res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end('<p>That unsubscribe link looks invalid or has expired.</p>');
+  }
+
+  if (kind === 'price') {
+    saveSettings(email, { priceAlerts: false });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center;">
+      <p>You've been unsubscribed from Next Break's price-drop alerts. You won't get any more of these emails.</p>
+      <p><a href="${PUBLIC_BASE_URL}">Back to Next Break</a></p>
+    </body></html>`);
   }
 
   setAccountProfile(email, { marketingOptIn: false });
@@ -1717,6 +1952,13 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/unsubscribe' && req.method === 'GET') return await handleUnsubscribe(req, res);
       if (pathname === '/api/admin/stats' && req.method === 'GET') return await handleAdminStats(req, res);
       if (pathname === '/api/stats' && req.method === 'GET') return await handleGetStats(req, res);
+      if (pathname === '/api/past-breaks' && req.method === 'GET') return await handleGetPastBreaks(req, res);
+      if (pathname === '/api/saved-venues' && req.method === 'GET') return await handleGetSavedVenues(req, res);
+      if (pathname === '/api/saved-venues' && req.method === 'POST') return await handlePostSavedVenue(req, res);
+      if (pathname === '/api/saved-venues' && req.method === 'DELETE') return await handleDeleteSavedVenue(req, res, searchParams);
+      if (pathname === '/api/break-notes' && req.method === 'GET') return await handleGetBreakNotes(req, res, searchParams);
+      if (pathname === '/api/break-notes' && req.method === 'PUT') return await handlePutBreakNotes(req, res);
+      if (pathname === '/api/share-link' && req.method === 'GET') return await handleGetShareLink(req, res);
 
       const userId = maybeUserId;
       if (!userId) return sendJson(res, 400, { error: 'Missing X-User-Id header.' });
@@ -1742,6 +1984,13 @@ const server = http.createServer(async (req, res) => {
     // token-is-the-auth reasoning.
     const calendarMatch = pathname.match(/^\/calendar\/([a-f0-9]+)\.ics$/);
     if (calendarMatch && req.method === 'GET') return await handleCalendarFeed(req, res, calendarMatch[1]);
+
+    // Roster-mate share page — same deliberately-outside-/api/,
+    // token-is-the-auth pattern as the calendar feed above, but rendered
+    // as a human-readable page rather than a machine feed. See
+    // handleSharePage for what it does and doesn't expose.
+    const shareMatch = pathname.match(/^\/share\/([a-f0-9]+)$/);
+    if (shareMatch && req.method === 'GET') return await handleSharePage(req, res, shareMatch[1]);
 
     if (pathname.startsWith('/avatars/') && req.method === 'GET') return serveAvatar(req, res, pathname);
 
@@ -1779,6 +2028,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`Stripe (paywall, currently unused): ${STRIPE_SECRET_KEY ? 'configured' : 'not configured'}`);
     console.log(`Admin dashboard: ${ADMIN_EMAILS.length ? `configured for ${ADMIN_EMAILS.join(', ')}` : 'NOT configured (set ADMIN_EMAIL in .env — /admin.html will 403 for everyone until then)'}`);
     console.log(`Break-reminder digest: ${RESEND_API_KEY ? `configured (Resend), checking every ${Math.round(DIGEST_SWEEP_INTERVAL_MS / 3600000)}h for opted-in accounts with a break 5-7 days out` : 'NOT configured (set RESEND_API_KEY in .env — no digest emails will send until then)'}`);
+    console.log(`Price-drop alerts: ${RESEND_API_KEY ? `configured (Resend), checking every ${Math.round(PRICE_ALERT_SWEEP_INTERVAL_MS / 3600000)}h for opted-in accounts` : 'NOT configured (set RESEND_API_KEY in .env — no price-alert emails will send until then)'}`);
   });
 
   // Only scheduled behind the same "ran directly, not imported by a test"
@@ -1787,6 +2037,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const DIGEST_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000; // once a day is plenty for a 3-day-wide eligibility window
   setTimeout(() => { runDigestSweep().catch(e => console.error('[digest] sweep threw:', e.message)); }, 60 * 1000); // small delay so it's not competing with server startup
   setInterval(() => { runDigestSweep().catch(e => console.error('[digest] sweep threw:', e.message)); }, DIGEST_SWEEP_INTERVAL_MS).unref();
+
+  const PRICE_ALERT_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000; // more often than the digest — a real price can drop any time of day
+  setTimeout(() => { runPriceAlertSweep().catch(e => console.error('[price-alert] sweep threw:', e.message)); }, 90 * 1000); // staggered a little after the digest's own startup delay
+  setInterval(() => { runPriceAlertSweep().catch(e => console.error('[price-alert] sweep threw:', e.message)); }, PRICE_ALERT_SWEEP_INTERVAL_MS).unref();
 }
 
-export { server, presentBreak, buildDealsForBreak, buildActivitiesForSettings, runDigestSweep, maybeSendDigestForAccount };
+export { server, presentBreak, buildDealsForBreak, buildActivitiesForSettings, runDigestSweep, maybeSendDigestForAccount, runPriceAlertSweep, maybeSendPriceAlertForAccount };

@@ -338,6 +338,11 @@
     .feedback-panel{bottom:calc(64px + var(--footer-avoid, 0px));right:10px;left:10px;width:auto;}
   }
   .disclaimer{background:var(--panel2);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+  /* Links inside a disclaimer box (e.g. "Create a free account…") had no
+     rule of their own, so they fell back to the browser default blue,
+     underlined link style — clashing badly with the dark theme. */
+  .disclaimer a{color:var(--accent);font-weight:700;text-decoration:none;}
+  .disclaimer a:hover{text-decoration:underline;}
   /* Tags (Updated ..., Picked for you) render as inline badges right at
      the end of the disclaimer text, like a trailing word, rather than as
      separate flex items — a flex row was wrapping the tag onto its own
@@ -3080,7 +3085,7 @@ function stayMarkup(result){
 // ---------- Notes tab (per-break notes + checklist, logged-in only) ----------
 function notesMarkup(result, breakKey){
   if(!authState.loggedIn){
-    return `<div class="disclaimer">📝 <a href="#" onclick="openAuthModal('signup');return false;">Create a free account</a> to add notes and a checklist for this break.</div>`;
+    return `<div class="disclaimer">📝 <a href="#" onclick="openAuthModal('signup');return false;">Create a free account</a> to add notes and a checklist for this break — things like a packing list, appointments to book before you go, or restaurants you want to try.</div>`;
   }
   if(!result) return '<div class="empty">Loading…</div>';
   if(result.error) return '<div class="empty">Could not load notes: ' + result.error + '</div>';
@@ -3097,9 +3102,9 @@ function notesMarkup(result, breakKey){
   return `
     <div class="events-section-head" style="margin:0 0 12px;">
       <h3>📝 Notes for this break</h3>
-      <p>Just for you — nothing here is shared with anyone else.</p>
+      <p>Just for you — nothing here is shared with anyone else. Good for things like who's looking after the dog, appointments to book before you go, gift ideas, or a packing list.</p>
     </div>
-    <textarea class="notes-textarea" id="notesText-${breakKey}" placeholder="Anything to remember — bookings to make, things to sort before you go…">${escapeHtml(result.notes || '')}</textarea>
+    <textarea class="notes-textarea" id="notesText-${breakKey}" placeholder="e.g. Book the dog into boarding, get the car serviced, pack hiking boots…">${escapeHtml(result.notes || '')}</textarea>
     <div style="margin-top:10px;display:flex;align-items:center;gap:10px;">
       <button class="btn secondary small" onclick='saveNotesText(${jsAttr(breakKey)})'>Save notes</button>
       <span class="auth-success" id="notesSaveMsg-${breakKey}" style="color:var(--accent);font-size:12.5px;"></span>

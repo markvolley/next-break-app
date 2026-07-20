@@ -153,6 +153,7 @@
   .venue-photo img{width:100%;height:100%;object-fit:cover;display:block;}
   .venue-card-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:2px;flex:1;}
   .venue-card .title{font-weight:700;font-size:14px;}
+  .venue-address{color:var(--muted);font-size:11.5px;opacity:.85;}
   .venue-card .meta{color:var(--muted);font-size:12px;margin-bottom:10px;}
   .venue-card .meta .venue-source{opacity:.75;}
   .venue-card .btn{margin-top:auto;}
@@ -2633,11 +2634,17 @@ function venueCard(v, { icon, osmSubtitle }){
   const linkUrl = isYelp ? v.url : v.mapUrl;
   const linkLabel = isYelp ? 'View on Yelp →' : 'View on map →';
 
+  // Only show real address data actually present on the venue, never guess.
+  // Prefer street + suburb; fall back to just the suburb if that's all we have.
+  const addressLine = v.address && v.suburb ? `${v.address}, ${v.suburb}` : (v.address || v.suburb || null);
+  const addressHtml = addressLine ? `<div class="venue-address">${addressLine}</div>` : '';
+
   return `
     <div class="venue-card">
       <div class="venue-photo${isYelp && v.imageUrl ? ' has-photo' : ''}">${photoHtml}</div>
       <div class="venue-card-body">
         <div class="title">${v.title}</div>
+        ${addressHtml}
         <div class="meta">${meta}</div>
         <a class="btn secondary small" href="${linkUrl}" target="_blank" rel="noopener">${linkLabel}</a>
       </div>

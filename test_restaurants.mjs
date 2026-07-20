@@ -25,8 +25,8 @@ function mockFetch({ geocodeOk = true, geocodeBody = [{ lat: '-33.87', lon: '151
   };
 }
 
-function el(name, { lat = -33.87, lon = 151.21, cuisine } = {}) {
-  return { tags: { name, ...(cuisine ? { cuisine } : {}) }, lat, lon };
+function el(name, { lat = -33.87, lon = 151.21, cuisine, addrTags } = {}) {
+  return { tags: { name, ...(cuisine ? { cuisine } : {}), ...(addrTags || {}) }, lat, lon };
 }
 
 // 1. No hometown at all — geocodeHometown returns null immediately, no
@@ -110,5 +110,27 @@ console.log('Test 6 passed: limit is respected, and every result is a real eleme
   assert.deepStrictEqual(r1.map(x => x.title), r2.map(x => x.title));
 }
 console.log('Test 7 passed: same hometown + same seed gives a stable, repeatable sample');
+
+// 8. Address/suburb are extracted from OSM addr:* tags when present, and
+// stay null (never fabricated) when the source data doesn't have them.
+{
+  const elements = [
+    el('Full Address Bistro', { addrTags: { 'addr:housenumber': '12', 'addr:street': 'Example St', 'addr:suburb': 'Bondi' } }),
+    el('City Fallback Cafe', { addrTags: { 'addr:housenumber': '5', 'addr:street': 'Main Rd', 'addr:city': 'Newtown' } }),
+    el('No Address Diner')
+  ];
+  const fetchImpl = mockFetch({ overpassElements: elements });
+  const r = await findRealRestaurants({ hometown: 'Sydney', fetchImpl });
+  const full = r.find(x => x.title === 'Full Address Bistro');
+  assert.strictEqual(full.address, '12 Example St');
+  assert.strictEqual(full.suburb, 'Bondi');
+  const cityFallback = r.find(x => x.title === 'City Fallback Cafe');
+  assert.strictEqual(cityFallback.address, '5 Main Rd');
+  assert.strictEqual(cityFallback.suburb, 'Newtown'); // falls back to addr:city
+  const none = r.find(x => x.title === 'No Address Diner');
+  assert.strictEqual(none.address, null);
+  assert.strictEqual(none.suburb, null);
+}
+console.log('Test 8 passed: address/suburb extracted from OSM tags when present, null when absent');
 
 console.log('ALL findRealRestaurants TESTS PASSED');

@@ -14,8 +14,8 @@ function mockFetch({ geocodeOk = true, geocodeBody = [{ lat: '-33.87', lon: '151
   };
 }
 
-function el(name, { lat = -33.87, lon = 151.21, tourism } = {}) {
-  return { tags: { name, ...(tourism ? { tourism } : {}) }, lat, lon };
+function el(name, { lat = -33.87, lon = 151.21, tourism, addrTags } = {}) {
+  return { tags: { name, ...(tourism ? { tourism } : {}), ...(addrTags || {}) }, lat, lon };
 }
 
 // 1. No hometown -> [].
@@ -89,5 +89,26 @@ console.log('Test 6 passed: limit respected, every result is real (never fabrica
   assert.deepStrictEqual(r1.map(x => x.title), r2.map(x => x.title));
 }
 console.log('Test 7 passed: same hometown + same seed gives a stable, repeatable sample');
+
+// 8. Address/suburb extracted from OSM addr:* tags when present, null
+// (never fabricated) when absent.
+{
+  const elements = [
+    el('Full Address Hotel', { tourism: 'hotel', addrTags: { 'addr:housenumber': '99', 'addr:street': 'Beach Rd', 'addr:suburb': 'Manly' } }),
+    el('Town Fallback Motel', { tourism: 'motel', addrTags: { 'addr:housenumber': '1', 'addr:street': 'High St', 'addr:town': 'Katoomba' } }),
+    el('No Address Hostel', { tourism: 'hostel' })
+  ];
+  const r = await findRealStays({ hometown: 'Sydney', fetchImpl: mockFetch({ overpassElements: elements }) });
+  const full = r.find(x => x.title === 'Full Address Hotel');
+  assert.strictEqual(full.address, '99 Beach Rd');
+  assert.strictEqual(full.suburb, 'Manly');
+  const townFallback = r.find(x => x.title === 'Town Fallback Motel');
+  assert.strictEqual(townFallback.address, '1 High St');
+  assert.strictEqual(townFallback.suburb, 'Katoomba'); // falls back to addr:town
+  const none = r.find(x => x.title === 'No Address Hostel');
+  assert.strictEqual(none.address, null);
+  assert.strictEqual(none.suburb, null);
+}
+console.log('Test 8 passed: address/suburb extracted from OSM tags when present, null when absent');
 
 console.log('ALL findRealStays TESTS PASSED');

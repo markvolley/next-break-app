@@ -122,10 +122,16 @@
      .mode-toggle's roster-mode switch) reads much more clearly as
      clickable navigation than the earlier plain-underline tabs did —
      those were easy to mistake for section labels rather than buttons. */
-  .panel-tabs{display:flex;gap:6px;margin:-4px -4px 18px;padding:5px;background:rgba(244,238,227,0.07);border-radius:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .panel-tab{flex:0 0 auto;padding:9px 16px;border:none;border-radius:9px;background:transparent;color:var(--muted);font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s;}
-  .panel-tab:hover{color:var(--text);background:rgba(244,238,227,0.08);}
-  .panel-tab.active{color:#101820;background:var(--accent);box-shadow:0 2px 10px rgba(245,176,76,0.35);}
+  /* Full-width, equal-column tab bar (icon over label, like a mobile app's
+     bottom nav) — deliberately a stronger, more instantly-recognizable
+     "this is navigation" pattern than the earlier horizontal pill row,
+     per direct feedback that the tabs still weren't obvious enough. */
+  .panel-tabs{display:flex;gap:4px;margin:-4px -4px 20px;padding:4px;background:rgba(244,238,227,0.05);border:1px solid rgba(244,238,227,0.14);border-radius:16px;}
+  .panel-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:11px 4px 10px;border:none;border-radius:12px;background:transparent;color:var(--muted);font-family:inherit;cursor:pointer;transition:background .15s,color .15s;}
+  .panel-tab-icon{font-size:19px;line-height:1;}
+  .panel-tab-label{font-size:11.5px;font-weight:800;letter-spacing:.2px;white-space:nowrap;}
+  .panel-tab:hover{color:var(--text);background:rgba(244,238,227,0.09);}
+  .panel-tab.active{color:#101820;background:var(--accent);box-shadow:0 4px 14px rgba(245,176,76,0.4);}
   /* Restaurants and Stay tabs show a grid of real, currently-mapped venues
      (see venueCard() in the frontend script) plus one honest link-out card
      to a real search page underneath — see restaurantsMarkup/stayMarkup. */
@@ -2124,14 +2130,14 @@ function renderBreaksList(){
   const stayHtml = stayMarkup(stayCache[selected.key]);
 
   const TABS = [
-    { key: 'flights', label: '✈️ Flights', html: flightsHtml },
-    { key: 'events', label: '🎟️ Events', html: eventsHtml },
-    { key: 'restaurants', label: '🍽️ Restaurants', html: restaurantsHtml },
-    { key: 'stay', label: '🏨 Stay', html: stayHtml }
+    { key: 'flights', icon: '✈️', label: 'Flights', html: flightsHtml },
+    { key: 'events', icon: '🎟️', label: 'Events', html: eventsHtml },
+    { key: 'restaurants', icon: '🍽️', label: 'Restaurants', html: restaurantsHtml },
+    { key: 'stay', icon: '🏨', label: 'Stay', html: stayHtml }
   ];
   if(!TABS.some(t => t.key === activeTab)) activeTab = 'flights';
   const tabsHtml = TABS.map(t =>
-    `<button class="panel-tab${t.key === activeTab ? ' active' : ''}" onclick="selectTab('${t.key}')">${t.label}</button>`
+    `<button class="panel-tab${t.key === activeTab ? ' active' : ''}" onclick="selectTab('${t.key}')"><span class="panel-tab-icon">${t.icon}</span><span class="panel-tab-label">${t.label}</span></button>`
   ).join('');
   const activeTabHtml = TABS.find(t => t.key === activeTab).html;
 

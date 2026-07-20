@@ -732,8 +732,8 @@
     </div>
 
     <div class="panel">
-      <h2>Trip interests</h2>
-      <p class="interests-hint">Tell us what kind of trips you're into and we'll lean toward matching options when the price is close. We'll never pick a pricier fare just because it fits; we only ever nudge among options within a similar price.</p>
+      <h2>Flight destination interests</h2>
+      <p class="interests-hint">Tell us what kind of destinations you're into and we'll lean toward matching flight options when the price is close. We'll never pick a pricier fare just because it fits; we only ever nudge among flight options within a similar price. Events, restaurants and stays aren't personalised by this; you'll see real, genuinely good options for wherever you land either way.</p>
       <div class="interest-chips" id="interestChips"></div>
       <div class="auth-error" id="interestsError"></div>
       <div style="margin-top:16px;">
@@ -1545,8 +1545,8 @@ function renderInterestsPromo(hasInterests){
   el.style.display = '';
   el.innerHTML = `
     <div class="content" style="min-width:100%;">
-      <h3>What kind of trips are you into?</h3>
-      <p class="interests-hint" style="margin:0 0 4px;">Pick a few and we'll lean toward matching options when the price is close.</p>
+      <h3>What kind of destinations are you into?</h3>
+      <p class="interests-hint" style="margin:0 0 4px;">Pick a few and we'll lean toward matching flight options when the price is close. Events, restaurants and stays are always real options either way.</p>
       <div class="interest-chips" id="dashboardInterestChips"></div>
     </div>
     <div class="actions" style="width:100%;justify-content:flex-end;margin-top:12px;">
